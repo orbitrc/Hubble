@@ -35,6 +35,10 @@
 #include <libweston/zalloc.h>
 #include "shared/platform.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct window;
 struct widget;
 struct display;
@@ -746,5 +750,9 @@ toytimer_arm_once_usec(struct toytimer *tt, uint32_t usec);
 
 void
 toytimer_disarm(struct toytimer *tt);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

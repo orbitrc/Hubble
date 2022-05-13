@@ -378,7 +378,7 @@ if get_option('shell-desktop')
 
 	exe_shell_desktop = executable(
 		'weston-desktop-shell',
-		'desktop-shell.c',
+		'desktop-shell.cpp',
 		weston_desktop_shell_client_protocol_h,
 		weston_desktop_shell_protocol_c,
 		include_directories: common_inc,

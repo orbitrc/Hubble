@@ -1,5 +1,5 @@
 project('weston',
-	'c',
+	'c', 'cpp',
 	version: '10.0.0',
 	default_options: [
 		'warning_level=3',

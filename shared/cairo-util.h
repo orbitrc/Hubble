@@ -32,6 +32,10 @@
 #include <wayland-client.h>
 #include <wayland-util.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void
 surface_flush_device(cairo_surface_t *surface);
 
@@ -229,5 +233,9 @@ frame_double_touch_up(struct frame *frame, void *data, int32_t id);
 
 void
 frame_repaint(struct frame *frame, cairo_t *cr);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
