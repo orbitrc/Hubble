@@ -260,42 +260,6 @@ surface_screenshot_test = shared_library(
 	install: false,
 )
 
-if get_option('shell-ivi')
-	ivi_layout_test_plugin = shared_library(
-		'test-ivi-layout',
-		[
-			'ivi-layout-test-plugin.c',
-			weston_test_server_protocol_h,
-			weston_test_protocol_c,
-		],
-		include_directories: common_inc,
-		dependencies: [ dep_libweston_private, dep_libexec_weston ],
-		name_prefix: '',
-		install: false,
-	)
-	env_modmap += 'test-ivi-layout.so=' + ivi_layout_test_plugin.full_path() + ';'
-
-	tests += [
-		{
-			'name': 'ivi-layout-client',
-			'sources': [
-				'ivi-layout-test-client.c',
-				ivi_application_client_protocol_h,
-				ivi_application_protocol_c,
-			],
-			'test_deps': [ ivi_layout_test_plugin ],
-		},
-		{	'name': 'ivi-layout-internal', },
-		{
-			'name': 'ivi-shell-app',
-			'sources': [
-				'ivi-shell-app-test.c',
-				ivi_application_client_protocol_h,
-				ivi_application_protocol_c,
-			],
-		},
-	]
-endif
 
 test_config_h = configuration_data()
 test_config_h.set_quoted('WESTON_TEST_REFERENCE_PATH', meson.current_source_dir() + '/reference')
