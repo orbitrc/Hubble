@@ -36,7 +36,19 @@ Please also see [the contributing document](CONTRIBUTING.md), which details how
 to make code or non-technical contributions to Weston.
 
 Build
-=====
+-----
+
+### Preparation
+
+On Ubuntu, you should install `-dev` packages before build.
+
+```sh
+$ sudo apt install libxkbcommon-dev libinput-dev libdrm-dev libwebp-dev libsystemd-dev libdbus-1-dev \
+liblcms2-dev libgbm-dev libva-dev freerdp2-dev libx11-xcb-dev libxcb-composite0-dev libxcursor-dev \
+libcolord-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libpipewire-0.3-dev
+```
+
+### Build Tools
 
 Hubble using GNU Make for building. But since Weston(Hubble is forked from this)
 is using Meson and Ninja to build, use should install these first.
