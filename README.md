@@ -1,10 +1,9 @@
-Weston
+Hubble
 ======
 
 ![screenshot of skeletal Weston desktop](doc/wayland-screenshot.jpg)
 
-Weston is the reference implementation of a Wayland compositor, as well as a
-useful environment in and of itself.
+Hubble is a Wayland compositor with common APIs for desktop environments.
 
 Out of the box, Weston provides a very basic desktop, or a full-featured
 environment for non-desktop uses such as automotive, embedded, in-flight,
@@ -36,17 +35,43 @@ Weston's development is
 Please also see [the contributing document](CONTRIBUTING.md), which details how
 to make code or non-technical contributions to Weston.
 
-Building Weston
-===============
+Build
+=====
+
+Hubble using GNU Make for building. But since Weston(Hubble is forked from this)
+is using Meson and Ninja to build, use should install these first.
+This dependencies will be removed future.
 
 Weston is built using [Meson](https://mesonbuild.com/). Weston often depends
 on the current release versions of
 [Wayland](https://gitlab.freedesktop.org/wayland/wayland) and
 [wayland-protocols](https://cgit.freedesktop.org/wayland/wayland-protocols).
 
-If necessary, the latest Meson can be installed as a user with:
+Meson is a Python package. You can install this using `pip`.
 
-	$ pip3 install --user meson
+```sh
+$ pip install meson
+```
+
+Ninja may provided by the distribution's package manager.
+
+### Arch Linux
+
+```sh
+$ sudo pacman -S ninja
+```
+
+### Ubuntu
+
+```sh
+$ sudo apt install ninja-build
+```
+
+And the build will be simply done by,
+
+```sh
+$ make
+```
 
 Weston's Meson build does not do autodetection and it defaults to all
 features enabled, which means you likely hit missing dependencies on the first
@@ -361,3 +386,10 @@ explicitly mentioned.
 
 Weston's build may not sanely allow this yet, but this is the
 intention.
+
+LICENSE
+=======
+
+Hubble is developed under MIT License. But Weston the original project is little
+bit different. The former license information is in `COPYING-weston` file.
+
