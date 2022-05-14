@@ -32,13 +32,14 @@
 #include <unistd.h>
 #include <errno.h>
 #include <math.h>
-#include <cairo.h>
 #include <sys/wait.h>
 #include <linux/input.h>
 #include <libgen.h>
 #include <ctype.h>
 #include <time.h>
 #include <assert.h>
+
+#include <cairo.h>
 
 #include <wayland-client.h>
 #include "window.h"
