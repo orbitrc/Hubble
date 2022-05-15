@@ -24,6 +24,7 @@
 
 #include "config.h"
 
+// C
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,12 +34,18 @@
 #include <errno.h>
 #include <math.h>
 #include <sys/wait.h>
-#include <linux/input.h>
 #include <libgen.h>
 #include <ctype.h>
 #include <time.h>
 #include <assert.h>
 
+// C++
+#include <vector>
+
+// Linux
+#include <linux/input.h>
+
+// Cairo
 #include <cairo.h>
 
 #include <wayland-client.h>
@@ -182,26 +189,26 @@ sigchild_handler(int s)
 static int
 is_desktop_painted(struct desktop *desktop)
 {
-	struct output *output;
+    struct output *output;
 
-	wl_list_for_each(output, &desktop->outputs, link) {
-		if (output->panel && !output->panel->painted)
-			return 0;
-		if (output->background && !output->background->painted)
-			return 0;
-	}
+    wl_list_for_each(output, &desktop->outputs, link) {
+        if (output->panel && !output->panel->painted)
+            return 0;
+        if (output->background && !output->background->painted)
+            return 0;
+    }
 
-	return 1;
+    return 1;
 }
 
 static void
 check_desktop_ready(struct window *window)
 {
 	struct display *display;
-	struct desktop *desktop;
+    struct desktop *desktop;
 
 	display = window_get_display(window);
-	desktop = static_cast<struct desktop*>(display_get_user_data(display));
+    desktop = static_cast<struct desktop*>(display_get_user_data(display));
 
 	if (!desktop->painted && is_desktop_painted(desktop)) {
 		desktop->painted = 1;
@@ -1536,8 +1543,8 @@ parse_clock_format(struct desktop *desktop, struct weston_config_section *s)
 
 int main(int argc, char *argv[])
 {
-	struct desktop desktop;
-	memset(&desktop, 0, sizeof(struct desktop));
+    struct desktop desktop;
+    memset(&desktop, 0, sizeof(struct desktop));
 
 	struct output *output;
 	struct weston_config_section *s;
@@ -1553,13 +1560,13 @@ int main(int argc, char *argv[])
 	parse_panel_position(&desktop, s);
 	parse_clock_format(&desktop, s);
 
-	desktop.display = display_create(&argc, argv);
-	if (desktop.display == NULL) {
-		fprintf(stderr, "failed to create display: %s\n",
-			strerror(errno));
-		weston_config_destroy(desktop.config);
-		return -1;
-	}
+    desktop.display = display_create(&argc, argv);
+    if (desktop.display == NULL) {
+        fprintf(stderr, "failed to create display: %s\n",
+            strerror(errno));
+        weston_config_destroy(desktop.config);
+        return -1;
+    }
 
 	display_set_user_data(desktop.display, &desktop);
 	display_set_global_handler(desktop.display, global_handler);
