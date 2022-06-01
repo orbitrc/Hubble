@@ -196,15 +196,19 @@ struct background {
 	uint32_t color;
 };
 
-struct output {
-	struct wl_output *output;
-	uint32_t server_output_id;
-	struct wl_list link;
+//===============
+// Output
+//===============
 
-	int x;
-	int y;
-	struct panel *panel;
-	struct background *background;
+struct output {
+    struct wl_output *output;
+    uint32_t server_output_id;
+    struct wl_list link;
+
+    int x;
+    int y;
+    struct panel *panel;
+    struct background *background;
 };
 
 struct panel_launcher {
