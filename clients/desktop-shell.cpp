@@ -48,6 +48,10 @@
 // Cairo
 #include <cairo.h>
 
+// Primer
+#include <primer/string.h>
+#include <primer/vector.h>
+
 #include <wayland-client.h>
 #include "window.h"
 #include "shared/cairo-util.h"
@@ -73,16 +77,63 @@ enum clock_format {
     CLOCK_FORMAT_NONE
 };
 
-struct desktop {
+
+enum class ClockFormat {
+    Minutes,
+    Seconds,
+    Minutes24h,
+    Seconds24h,
+    None,
+};
+
+struct output;
+
+//=============
+// Desktop
+//=============
+
+class Desktop
+{
+public:
+    Desktop()
+    {
+        this->display = nullptr;
+        this->shell = nullptr;
+        this->unlock_dialog = nullptr;
+//         this->outputs = ;
+
+        this->want_panel = 0;
+        this->panel_position = WESTON_DESKTOP_SHELL_PANEL_POSITION_TOP;
+        this->clock_format = ClockFormat::Minutes;
+
+        this->grab_window = nullptr;
+        this->grab_widget = nullptr;
+
+        this->config = nullptr;
+        this->locking = false;
+
+        this->grab_cursor = CURSOR_BLANK;
+
+        this->painted = 0;
+    }
+
+    int is_painted() const;
+
+    void parse_panel_position(struct weston_config_section *s);
+
+    void parse_clock_format(struct weston_config_section *s);
+
+public:
     struct display *display;
     struct weston_desktop_shell *shell;
     struct unlock_dialog *unlock_dialog;
     struct task unlock_task;
-    struct wl_list outputs;
+//    struct wl_list outputs;
+    pr::Vector<struct output*> outputs;
 
     int want_panel;
     enum weston_desktop_shell_panel_position panel_position;
-    enum clock_format clock_format;
+    ClockFormat clock_format;
 
     struct window *grab_window;
     struct widget *grab_widget;
@@ -95,6 +146,10 @@ struct desktop {
     int painted;
 };
 
+//===========
+// Surface
+//===========
+
 struct surface {
 	void (*configure)(void *data,
 			  struct weston_desktop_shell *desktop_shell,
@@ -103,6 +158,10 @@ struct surface {
 };
 
 struct output;
+
+//=========
+// Panel
+//=========
 
 struct panel {
 	struct surface base;
@@ -115,9 +174,13 @@ struct panel {
 	struct panel_clock *clock;
 	int painted;
 	enum weston_desktop_shell_panel_position panel_position;
-	enum clock_format clock_format;
+    ClockFormat clock_format;
 	uint32_t color;
 };
+
+//===============
+// Background
+//===============
 
 struct background {
 	struct surface base;
@@ -169,11 +232,76 @@ struct unlock_dialog {
 	struct widget *button;
 	int button_focused;
 	int closing;
-	struct desktop *desktop;
+    Desktop *desktop;
 };
 
-static void
-panel_add_launchers(struct panel *panel, struct desktop *desktop);
+//=====================
+// Desktop Methods
+//=====================
+
+int Desktop::is_painted() const
+{
+    for (const auto& output: this->outputs) {
+        if (output->panel && !output->panel->painted) {
+            return 0;
+        }
+        if (output->background && !output->background->painted) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+void Desktop::parse_panel_position(struct weston_config_section *s)
+{
+    char *position_buf;
+    pr::String position;
+
+    this->want_panel = 1;
+
+    weston_config_section_get_string(s, "panel-position", &position_buf, "top");
+    position = position_buf;
+    free(position_buf);
+    if (position == "top") {
+        this->panel_position = WESTON_DESKTOP_SHELL_PANEL_POSITION_TOP;
+    } else if (position == "bottom") {
+        this->panel_position = WESTON_DESKTOP_SHELL_PANEL_POSITION_BOTTOM;
+    } else if (position == "left") {
+        this->panel_position = WESTON_DESKTOP_SHELL_PANEL_POSITION_LEFT;
+    } else if (position == "right") {
+        this->panel_position = WESTON_DESKTOP_SHELL_PANEL_POSITION_RIGHT;
+    } else {
+        // 'none' is valid here.
+        if (position == "none") {
+            fprintf(stderr, "Wrong panel position: %s\n", "none");
+        }
+        this->want_panel = 0;
+    }
+}
+
+void Desktop::parse_clock_format(struct weston_config_section *s)
+{
+    char *clock_format;
+
+    weston_config_section_get_string(s, "clock-format", &clock_format, "");
+    if (strcmp(clock_format, "minutes") == 0)
+        this->clock_format = ClockFormat::Minutes;
+    else if (strcmp(clock_format, "seconds") == 0)
+        this->clock_format = ClockFormat::Seconds;
+    else if (strcmp(clock_format, "minutes-24h") == 0)
+        this->clock_format = ClockFormat::Minutes24h;
+    else if (strcmp(clock_format, "seconds-24h") == 0)
+        this->clock_format = ClockFormat::Seconds24h;
+    else if (strcmp(clock_format, "none") == 0)
+        this->clock_format = ClockFormat::None;
+    else
+        this->clock_format = ClockFormat::Minutes;
+    free(clock_format);
+}
+
+
+static void panel_add_launchers(struct panel *panel, Desktop *desktop);
 
 static void
 sigchild_handler(int s)
@@ -186,32 +314,17 @@ sigchild_handler(int s)
 		fprintf(stderr, "child %d exited\n", pid);
 }
 
-static int
-is_desktop_painted(struct desktop *desktop)
-{
-    struct output *output;
-
-    wl_list_for_each(output, &desktop->outputs, link) {
-        if (output->panel && !output->panel->painted)
-            return 0;
-        if (output->background && !output->background->painted)
-            return 0;
-    }
-
-    return 1;
-}
-
 static void
 check_desktop_ready(struct window *window)
 {
 	struct display *display;
-    struct desktop *desktop;
+    Desktop *desktop;
 
 	display = window_get_display(window);
-    desktop = static_cast<struct desktop*>(display_get_user_data(display));
+    desktop = static_cast<Desktop*>(display_get_user_data(display));
 
-	if (!desktop->painted && is_desktop_painted(desktop)) {
-		desktop->painted = 1;
+    if (!desktop->painted && desktop->is_painted()) {
+        desktop->painted = 1;
 
 		weston_desktop_shell_desktop_ready(desktop->shell);
 	}
@@ -459,8 +572,7 @@ panel_destroy_clock(struct panel_clock *clock)
 	free(clock);
 }
 
-static void
-panel_add_clock(struct panel *panel)
+static void panel_add_clock(struct panel *panel)
 {
 	struct panel_clock *clock;
 
@@ -469,23 +581,23 @@ panel_add_clock(struct panel *panel)
 	panel->clock = clock;
 
 	switch (panel->clock_format) {
-	case CLOCK_FORMAT_MINUTES:
+    case ClockFormat::Minutes:
 		clock->format_string = "%a %b %d, %I:%M %p";
 		clock->refresh_timer = 60;
 		break;
-	case CLOCK_FORMAT_SECONDS:
+    case ClockFormat::Seconds:
 		clock->format_string = "%a %b %d, %I:%M:%S %p";
 		clock->refresh_timer = 1;
 		break;
-	case CLOCK_FORMAT_MINUTES_24H:
+    case ClockFormat::Minutes24h:
 		clock->format_string = "%a %b %d, %H:%M";
 		clock->refresh_timer = 60;
 		break;
-	case CLOCK_FORMAT_SECONDS_24H:
+    case ClockFormat::Seconds24h:
 		clock->format_string = "%a %b %d, %H:%M:%S";
 		clock->refresh_timer = 1;
 		break;
-	case CLOCK_FORMAT_NONE:
+    case ClockFormat::None:
 		assert(!"not reached");
 	}
 
@@ -497,9 +609,8 @@ panel_add_clock(struct panel *panel)
 	widget_set_redraw_handler(clock->widget, panel_clock_redraw_handler);
 }
 
-static void
-panel_resize_handler(struct widget *widget,
-		     int32_t width, int32_t height, void *data)
+static void panel_resize_handler(struct widget *widget,
+        int32_t width, int32_t height, void *data)
 {
 	struct panel_launcher *launcher;
 	struct panel *panel = static_cast<struct panel*>(data);
@@ -521,7 +632,7 @@ panel_resize_handler(struct widget *widget,
 		first_pad_h = first_pad_w = 0;
 	}
 
-	if (panel->clock_format == CLOCK_FORMAT_SECONDS)
+    if (panel->clock_format == ClockFormat::Seconds)
 		w = 170;
 	else /* CLOCK_FORMAT_MINUTES and 24H versions */
 		w = 150;
@@ -545,7 +656,7 @@ panel_configure(void *data,
 		uint32_t edges, struct window *window,
 		int32_t width, int32_t height)
 {
-	struct desktop *desktop = static_cast<struct desktop*>(data);
+    Desktop *desktop = static_cast<Desktop*>(data);
 	struct surface *surface = (struct surface*)window_get_user_data(window);
 	struct panel *panel = container_of(surface, struct panel, base);
 	struct output *owner;
@@ -566,15 +677,15 @@ panel_configure(void *data,
 	case WESTON_DESKTOP_SHELL_PANEL_POSITION_LEFT:
 	case WESTON_DESKTOP_SHELL_PANEL_POSITION_RIGHT:
 		switch (desktop->clock_format) {
-		case CLOCK_FORMAT_NONE:
+        case ClockFormat::None:
 			width = 32;
 			break;
-		case CLOCK_FORMAT_MINUTES:
-		case CLOCK_FORMAT_MINUTES_24H:
-		case CLOCK_FORMAT_SECONDS_24H:
+        case ClockFormat::Minutes:
+        case ClockFormat::Minutes24h:
+        case ClockFormat::Seconds24h:
 			width = 150;
 			break;
-		case CLOCK_FORMAT_SECONDS:
+        case ClockFormat::Seconds:
 			width = 170;
 			break;
 		}
@@ -617,8 +728,7 @@ panel_destroy(struct panel *panel)
 	free(panel);
 }
 
-static struct panel *
-panel_create(struct desktop *desktop, struct output *output)
+static struct panel* panel_create(Desktop *desktop, struct output *output)
 {
 	struct panel *panel;
 	struct weston_config_section *s;
@@ -639,8 +749,9 @@ panel_create(struct desktop *desktop, struct output *output)
 
 	panel->panel_position = desktop->panel_position;
 	panel->clock_format = desktop->clock_format;
-	if (panel->clock_format != CLOCK_FORMAT_NONE)
-		panel_add_clock(panel);
+    if (panel->clock_format != ClockFormat::None) {
+        panel_add_clock(panel);
+    }
 
 	s = weston_config_get_section(desktop->config, "shell", NULL, NULL);
 	weston_config_section_get_color(s, "panel-color",
@@ -942,7 +1053,7 @@ unlock_dialog_button_handler(struct widget *widget,
 			     enum wl_pointer_button_state state, void *data)
 {
 	struct unlock_dialog *dialog = static_cast<struct unlock_dialog*>(data);
-	struct desktop *desktop = dialog->desktop;
+    Desktop *desktop = dialog->desktop;
 
 	if (button == BTN_LEFT) {
 		if (state == WL_POINTER_BUTTON_STATE_RELEASED &&
@@ -970,7 +1081,7 @@ unlock_dialog_touch_up_handler(struct widget *widget, struct input *input,
 				void *data)
 {
     struct unlock_dialog *dialog = static_cast<struct unlock_dialog*>(data);
-	struct desktop *desktop = dialog->desktop;
+    Desktop *desktop = dialog->desktop;
 
 	dialog->button_focused = 0;
 	widget_schedule_redraw(widget);
@@ -1008,8 +1119,7 @@ unlock_dialog_widget_leave_handler(struct widget *widget,
 	widget_schedule_redraw(widget);
 }
 
-static struct unlock_dialog *
-unlock_dialog_create(struct desktop *desktop)
+static struct unlock_dialog* unlock_dialog_create(Desktop *desktop)
 {
 	struct display *display = desktop->display;
 	struct unlock_dialog *dialog;
@@ -1056,8 +1166,7 @@ unlock_dialog_destroy(struct unlock_dialog *dialog)
 static void
 unlock_dialog_finish(struct task *task, uint32_t events)
 {
-	struct desktop *desktop =
-		container_of(task, struct desktop, unlock_task);
+    Desktop *desktop = container_of(task, Desktop, unlock_task);
 
 	weston_desktop_shell_unlock(desktop->shell);
 	unlock_dialog_destroy(desktop->unlock_dialog);
@@ -1081,7 +1190,7 @@ static void
 desktop_shell_prepare_lock_surface(void *data,
         struct weston_desktop_shell *desktop_shell)
 {
-    struct desktop *desktop = static_cast<struct desktop*>(data);
+    Desktop *desktop = static_cast<Desktop*>(data);
 
 	if (!desktop->locking) {
 		weston_desktop_shell_unlock(desktop->shell);
@@ -1094,12 +1203,10 @@ desktop_shell_prepare_lock_surface(void *data,
 	}
 }
 
-static void
-desktop_shell_grab_cursor(void *data,
-			  struct weston_desktop_shell *desktop_shell,
-			  uint32_t cursor)
+static void desktop_shell_grab_cursor(void *data,
+        struct weston_desktop_shell *desktop_shell, uint32_t cursor)
 {
-	struct desktop *desktop = static_cast<struct desktop*>(data);
+    Desktop *desktop = static_cast<Desktop*>(data);
 
 	switch (cursor) {
 	case WESTON_DESKTOP_SHELL_CURSOR_NONE:
@@ -1157,8 +1264,8 @@ background_destroy(struct background *background)
 	free(background);
 }
 
-static struct background *
-background_create(struct desktop *desktop, struct output *output)
+static struct background* background_create(Desktop *desktop,
+        struct output *output)
 {
 	struct background *background;
 	struct weston_config_section *s;
@@ -1205,24 +1312,21 @@ background_create(struct desktop *desktop, struct output *output)
 	return background;
 }
 
-static int
-grab_surface_enter_handler(struct widget *widget, struct input *input,
-			   float x, float y, void *data)
+static int grab_surface_enter_handler(struct widget *widget,
+        struct input *input, float x, float y, void *data)
 {
-	struct desktop *desktop = static_cast<struct desktop*>(data);
+    Desktop *desktop = static_cast<Desktop*>(data);
 
-	return desktop->grab_cursor;
+    return desktop->grab_cursor;
 }
 
-static void
-grab_surface_destroy(struct desktop *desktop)
+static void grab_surface_destroy(Desktop *desktop)
 {
 	widget_destroy(desktop->grab_widget);
 	window_destroy(desktop->grab_window);
 }
 
-static void
-grab_surface_create(struct desktop *desktop)
+static void grab_surface_create(Desktop *desktop)
 {
 	struct wl_surface *s;
 
@@ -1255,14 +1359,11 @@ output_destroy(struct output *output)
 	free(output);
 }
 
-static void
-desktop_destroy_outputs(struct desktop *desktop)
+static void desktop_destroy_outputs(Desktop *desktop)
 {
-	struct output *tmp;
-	struct output *output;
-
-	wl_list_for_each_safe(output, tmp, &desktop->outputs, link)
-		output_destroy(output);
+    for (auto& output: desktop->outputs) {
+        output_destroy(output);
+    }
 }
 
 static void
@@ -1323,8 +1424,7 @@ static const struct wl_output_listener output_listener = {
 	output_handle_scale
 };
 
-static void
-output_init(struct output *output, struct desktop *desktop)
+static void output_init(struct output *output, Desktop *desktop)
 {
 	struct wl_surface *surface;
 
@@ -1341,14 +1441,14 @@ output_init(struct output *output, struct desktop *desktop)
 					    output->output, surface);
 }
 
-static void
-create_output(struct desktop *desktop, uint32_t id)
+static void create_output(Desktop *desktop, uint32_t id)
 {
 	struct output *output;
 
     output = static_cast<struct output*>(zalloc(sizeof *output));
-	if (!output)
-		return;
+    if (!output) {
+        return;
+    }
 
 	output->output =
         static_cast<struct wl_output*>(display_bind(desktop->display, id, &wl_output_interface, 2));
@@ -1356,7 +1456,7 @@ create_output(struct desktop *desktop, uint32_t id)
 
 	wl_output_add_listener(output->output, &output_listener, output);
 
-	wl_list_insert(&desktop->outputs, &output->link);
+    desktop->outputs.push(output);
 
 	/* On start up we may process an output global before the shell global
 	 * in which case we can't create the panel and background just yet */
@@ -1364,10 +1464,8 @@ create_output(struct desktop *desktop, uint32_t id)
 		output_init(output, desktop);
 }
 
-static void
-output_remove(struct desktop *desktop, struct output *output)
+static void output_remove(Desktop *desktop, struct output *output)
 {
-	struct output *cur;
 	struct output *rep = NULL;
 
 	if (!output->background) {
@@ -1375,18 +1473,19 @@ output_remove(struct desktop *desktop, struct output *output)
 		return;
 	}
 
-	/* Find a wl_output that is a clone of the removed wl_output.
-	 * We don't want to leave the clone without a background or panel. */
-	wl_list_for_each(cur, &desktop->outputs, link) {
-		if (cur == output)
-			continue;
+    // Find a wl_output that is a clone of the removed wl_output.
+    // We don't want to leave the clone without a background or panel.
+    for (auto& cur: desktop->outputs) {
+        if (cur == output) {
+            continue;
+        }
 
-		/* XXX: Assumes size matches. */
-		if (cur->x == output->x && cur->y == output->y) {
-			rep = cur;
-			break;
-		}
-	}
+        // XXX: Assumes size matches.
+        if (cur->x == output->x && cur->y == output->y) {
+            rep = cur;
+            break;
+        }
+    }
 
 	if (rep) {
 		/* If found and it does not already have a background or panel,
@@ -1422,7 +1521,7 @@ static void
 global_handler(struct display *display, uint32_t id,
         const char *interface, uint32_t version, void *data)
 {
-    struct desktop *desktop = static_cast<struct desktop*>(data);
+    Desktop *desktop = static_cast<Desktop*>(data);
 
     if (!strcmp(interface, "weston_desktop_shell")) {
         desktop->shell = static_cast<weston_desktop_shell*>(
@@ -1434,30 +1533,29 @@ global_handler(struct display *display, uint32_t id,
         weston_desktop_shell_add_listener(desktop->shell,
 						  &listener,
 						  desktop);
-	} else if (!strcmp(interface, "wl_output")) {
-		create_output(desktop, id);
-	}
+    } else if (!strcmp(interface, "wl_output")) {
+        create_output(desktop, id);
+    }
 }
 
 static void
 global_handler_remove(struct display *display, uint32_t id,
 	       const char *interface, uint32_t version, void *data)
 {
-	struct desktop *desktop = static_cast<struct desktop*>(data);
+    Desktop *desktop = static_cast<Desktop*>(data);
 	struct output *output;
 
 	if (!strcmp(interface, "wl_output")) {
-		wl_list_for_each(output, &desktop->outputs, link) {
-			if (output->server_output_id == id) {
-				output_remove(desktop, output);
-				break;
-			}
-		}
+        for (auto& output: desktop->outputs) {
+            if (output->server_output_id == id) {
+                output_remove(desktop, output);
+                break;
+            }
+        }
 	}
 }
 
-static void
-panel_add_launchers(struct panel *panel, struct desktop *desktop)
+static void panel_add_launchers(struct panel *panel, Desktop *desktop)
 {
 	struct weston_config_section *s;
 	char *icon, *path;
@@ -1495,70 +1593,25 @@ panel_add_launchers(struct panel *panel, struct desktop *desktop)
 	}
 }
 
-static void
-parse_panel_position(struct desktop *desktop, struct weston_config_section *s)
-{
-	char *position;
-
-	desktop->want_panel = 1;
-
-	weston_config_section_get_string(s, "panel-position", &position, "top");
-	if (strcmp(position, "top") == 0) {
-		desktop->panel_position = WESTON_DESKTOP_SHELL_PANEL_POSITION_TOP;
-	} else if (strcmp(position, "bottom") == 0) {
-		desktop->panel_position = WESTON_DESKTOP_SHELL_PANEL_POSITION_BOTTOM;
-	} else if (strcmp(position, "left") == 0) {
-		desktop->panel_position = WESTON_DESKTOP_SHELL_PANEL_POSITION_LEFT;
-	} else if (strcmp(position, "right") == 0) {
-		desktop->panel_position = WESTON_DESKTOP_SHELL_PANEL_POSITION_RIGHT;
-	} else {
-		/* 'none' is valid here */
-		if (strcmp(position, "none") != 0)
-			fprintf(stderr, "Wrong panel position: %s\n", position);
-		desktop->want_panel = 0;
-	}
-	free(position);
-}
-
-static void
-parse_clock_format(struct desktop *desktop, struct weston_config_section *s)
-{
-	char *clock_format;
-
-	weston_config_section_get_string(s, "clock-format", &clock_format, "");
-	if (strcmp(clock_format, "minutes") == 0)
-		desktop->clock_format = CLOCK_FORMAT_MINUTES;
-	else if (strcmp(clock_format, "seconds") == 0)
-		desktop->clock_format = CLOCK_FORMAT_SECONDS;
-	else if (strcmp(clock_format, "minutes-24h") == 0)
-		desktop->clock_format = CLOCK_FORMAT_MINUTES_24H;
-	else if (strcmp(clock_format, "seconds-24h") == 0)
-		desktop->clock_format = CLOCK_FORMAT_SECONDS_24H;
-	else if (strcmp(clock_format, "none") == 0)
-		desktop->clock_format = CLOCK_FORMAT_NONE;
-	else
-		desktop->clock_format = DEFAULT_CLOCK_FORMAT;
-	free(clock_format);
-}
 
 int main(int argc, char *argv[])
 {
-    struct desktop desktop;
-    memset(&desktop, 0, sizeof(struct desktop));
+    Desktop desktop;
+//    memset(&desktop, 0, sizeof(struct desktop));
 
 	struct output *output;
 	struct weston_config_section *s;
 	const char *config_file;
 
 	desktop.unlock_task.run = unlock_dialog_finish;
-	wl_list_init(&desktop.outputs);
+    // wl_list_init(&desktop.outputs);
 
 	config_file = weston_config_get_name_from_env();
 	desktop.config = weston_config_parse(config_file);
 	s = weston_config_get_section(desktop.config, "shell", NULL, NULL);
 	weston_config_section_get_bool(s, "locking", &desktop.locking, true);
-	parse_panel_position(&desktop, s);
-	parse_clock_format(&desktop, s);
+    desktop.parse_panel_position(s);
+    desktop.parse_clock_format(s);
 
     desktop.display = display_create(&argc, argv);
     if (desktop.display == NULL) {
@@ -1574,11 +1627,15 @@ int main(int argc, char *argv[])
 
 	/* Create panel and background for outputs processed before the shell
 	 * global interface was processed */
-	if (desktop.want_panel)
-		weston_desktop_shell_set_panel_position(desktop.shell, desktop.panel_position);
-	wl_list_for_each(output, &desktop.outputs, link)
-		if (!output->panel)
-			output_init(output, &desktop);
+    if (desktop.want_panel) {
+        weston_desktop_shell_set_panel_position(desktop.shell, desktop.panel_position);
+    }
+
+    for (auto& output: desktop.outputs) {
+        if (!output->panel) {
+            output_init(output, &desktop);
+        }
+    }
 
 	grab_surface_create(&desktop);
 

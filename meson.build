@@ -155,6 +155,7 @@ dep_libdl = cc.find_library('dl')
 dep_libdrm = dependency('libdrm', version: '>= 2.4.95')
 dep_libdrm_headers = dep_libdrm.partial_dependency(compile_args: true)
 dep_threads = dependency('threads')
+dep_primer = cc.find_library('primer')
 
 dep_libdrm_version = dep_libdrm.version()
 if dep_libdrm_version.version_compare('>=2.4.107')

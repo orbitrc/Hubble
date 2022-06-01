@@ -23,6 +23,7 @@ deps_toytoolkit = [
 	dep_xkbcommon,
 	dependency('wayland-cursor'),
 	cc.find_library('util'),
+	dep_primer,
 ]
 lib_toytoolkit = static_library(
 	'toytoolkit',
