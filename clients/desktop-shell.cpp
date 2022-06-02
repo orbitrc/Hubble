@@ -403,11 +403,13 @@ static int
 panel_launcher_motion_handler(struct widget *widget, struct input *input,
         uint32_t time, float x, float y, void *data)
 {
+    (void)input;
+    (void)time;
     struct panel_launcher *launcher = static_cast<struct panel_launcher*>(data);
 
-	widget_set_tooltip(widget, basename((char *)launcher->path), x, y);
+    widget_set_tooltip(widget, basename((char *)launcher->path), x, y);
 
-	return CURSOR_LEFT_PTR;
+    return CURSOR_LEFT_PTR;
 }
 
 static void
@@ -420,9 +422,10 @@ set_hex_color(cairo_t *cr, uint32_t color)
 			      ((color >> 24) & 0xff) / 255.0);
 }
 
-static void
-panel_redraw_handler(struct widget *widget, void *data)
+static void panel_redraw_handler(struct widget *widget, void *data)
 {
+    (void)widget;
+
 	cairo_surface_t *surface;
 	cairo_t *cr;
 	struct panel *panel = static_cast<struct panel*>(data);
@@ -439,10 +442,12 @@ panel_redraw_handler(struct widget *widget, void *data)
 	check_desktop_ready(panel->window);
 }
 
-static int
-panel_launcher_enter_handler(struct widget *widget, struct input *input,
-			     float x, float y, void *data)
+static int panel_launcher_enter_handler(struct widget *widget,
+        struct input *input, float x, float y, void *data)
 {
+    (void)input;
+    (void)x;
+    (void)y;
 	struct panel_launcher *launcher = static_cast<struct panel_launcher*>(data);
 
 	launcher->focused = 1;
@@ -451,10 +456,10 @@ panel_launcher_enter_handler(struct widget *widget, struct input *input,
 	return CURSOR_LEFT_PTR;
 }
 
-static void
-panel_launcher_leave_handler(struct widget *widget,
-			     struct input *input, void *data)
+static void panel_launcher_leave_handler(struct widget *widget,
+        struct input *input, void *data)
 {
+    (void)input;
 	struct panel_launcher *launcher = static_cast<struct panel_launcher*>(data);
 
 	launcher->focused = 0;
@@ -462,12 +467,15 @@ panel_launcher_leave_handler(struct widget *widget,
 	widget_schedule_redraw(widget);
 }
 
-static void
-panel_launcher_button_handler(struct widget *widget,
-			      struct input *input, uint32_t time,
-			      uint32_t button,
-			      enum wl_pointer_button_state state, void *data)
+static void panel_launcher_button_handler(struct widget *widget,
+        struct input *input, uint32_t time,
+        uint32_t button,
+        enum wl_pointer_button_state state, void *data)
 {
+    (void)input;
+    (void)time;
+    (void)button;
+    (void)data;
 	struct panel_launcher *launcher;
 
 	launcher = (struct panel_launcher*)widget_get_user_data(widget);
@@ -477,11 +485,18 @@ panel_launcher_button_handler(struct widget *widget,
 
 }
 
-static void
-panel_launcher_touch_down_handler(struct widget *widget, struct input *input,
-				  uint32_t serial, uint32_t time, int32_t id,
-				  float x, float y, void *data)
+static void panel_launcher_touch_down_handler(struct widget *widget,
+        struct input *input,
+        uint32_t serial, uint32_t time, int32_t id,
+        float x, float y, void *data)
 {
+    (void)input;
+    (void)serial;
+    (void)time;
+    (void)id;
+    (void)x;
+    (void)y;
+    (void)data;
 	struct panel_launcher *launcher;
 
 	launcher = (struct panel_launcher*)widget_get_user_data(widget);
@@ -489,11 +504,16 @@ panel_launcher_touch_down_handler(struct widget *widget, struct input *input,
 	widget_schedule_redraw(widget);
 }
 
-static void
-panel_launcher_touch_up_handler(struct widget *widget, struct input *input,
-				uint32_t serial, uint32_t time, int32_t id,
-				void *data)
+static void panel_launcher_touch_up_handler(struct widget *widget,
+        struct input *input,
+        uint32_t serial, uint32_t time, int32_t id,
+        void *data)
 {
+    (void)input;
+    (void)serial;
+    (void)time;
+    (void)id;
+    (void)data;
 	struct panel_launcher *launcher;
 
 	launcher = (struct panel_launcher*)widget_get_user_data(widget);
@@ -616,6 +636,7 @@ static void panel_add_clock(struct panel *panel)
 static void panel_resize_handler(struct widget *widget,
         int32_t width, int32_t height, void *data)
 {
+    (void)widget;
 	struct panel_launcher *launcher;
 	struct panel *panel = static_cast<struct panel*>(data);
 	int x = 0;
@@ -651,15 +672,15 @@ static void panel_resize_handler(struct widget *widget,
 				      x, y, w + 1, h + 1);
 }
 
-static void
-panel_destroy(struct panel *panel);
+static void panel_destroy(struct panel *panel);
 
-static void
-panel_configure(void *data,
-		struct weston_desktop_shell *desktop_shell,
-		uint32_t edges, struct window *window,
-		int32_t width, int32_t height)
+static void panel_configure(void *data,
+        struct weston_desktop_shell *desktop_shell,
+        uint32_t edges, struct window *window,
+        int32_t width, int32_t height)
 {
+    (void)desktop_shell;
+    (void)edges;
     Desktop *desktop = static_cast<Desktop*>(data);
 	struct surface *surface = (struct surface*)window_get_user_data(window);
 	struct panel *panel = container_of(surface, struct panel, base);
@@ -976,12 +997,14 @@ background_draw(struct widget *widget, void *data)
 static void
 background_destroy(struct background *background);
 
-static void
-background_configure(void *data,
-		     struct weston_desktop_shell *desktop_shell,
-		     uint32_t edges, struct window *window,
-		     int32_t width, int32_t height)
+static void background_configure(void *data,
+        struct weston_desktop_shell *desktop_shell,
+        uint32_t edges, struct window *window,
+        int32_t width, int32_t height)
 {
+    (void)data;
+    (void)desktop_shell;
+    (void)edges;
 	struct output *owner;
 	struct background *background =
 		(struct background *) window_get_user_data(window);
@@ -1050,12 +1073,14 @@ unlock_dialog_redraw_handler(struct widget *widget, void *data)
 	cairo_surface_destroy(surface);
 }
 
-static void
-unlock_dialog_button_handler(struct widget *widget,
-			     struct input *input, uint32_t time,
-			     uint32_t button,
-			     enum wl_pointer_button_state state, void *data)
+static void unlock_dialog_button_handler(struct widget *widget,
+        struct input *input, uint32_t time,
+        uint32_t button,
+        enum wl_pointer_button_state state, void *data)
 {
+    (void)widget;
+    (void)input;
+    (void)time;
 	struct unlock_dialog *dialog = static_cast<struct unlock_dialog*>(data);
     Desktop *desktop = dialog->desktop;
 
@@ -1068,22 +1093,32 @@ unlock_dialog_button_handler(struct widget *widget,
 	}
 }
 
-static void
-unlock_dialog_touch_down_handler(struct widget *widget, struct input *input,
-		   uint32_t serial, uint32_t time, int32_t id,
-		   float x, float y, void *data)
+static void unlock_dialog_touch_down_handler(struct widget *widget,
+        struct input *input,
+        uint32_t serial, uint32_t time, int32_t id,
+        float x, float y, void *data)
 {
+    (void)input;
+    (void)serial;
+    (void)time;
+    (void)id;
+    (void)x;
+    (void)y;
 	struct unlock_dialog *dialog = static_cast<struct unlock_dialog*>(data);
 
 	dialog->button_focused = 1;
 	widget_schedule_redraw(widget);
 }
 
-static void
-unlock_dialog_touch_up_handler(struct widget *widget, struct input *input,
-				uint32_t serial, uint32_t time, int32_t id,
-				void *data)
+static void unlock_dialog_touch_up_handler(struct widget *widget,
+        struct input *input,
+        uint32_t serial, uint32_t time, int32_t id,
+        void *data)
 {
+    (void)input;
+    (void)serial;
+    (void)time;
+    (void)id;
     struct unlock_dialog *dialog = static_cast<struct unlock_dialog*>(data);
     Desktop *desktop = dialog->desktop;
 
@@ -1093,18 +1128,21 @@ unlock_dialog_touch_up_handler(struct widget *widget, struct input *input,
 	dialog->closing = 1;
 }
 
-static void
-unlock_dialog_keyboard_focus_handler(struct window *window,
-				     struct input *device, void *data)
+static void unlock_dialog_keyboard_focus_handler(struct window *window,
+        struct input *device, void *data)
 {
-	window_schedule_redraw(window);
+    (void)device;
+    (void)data;
+    window_schedule_redraw(window);
 }
 
-static int
-unlock_dialog_widget_enter_handler(struct widget *widget,
-				   struct input *input,
-				   float x, float y, void *data)
+static int unlock_dialog_widget_enter_handler(struct widget *widget,
+        struct input *input,
+        float x, float y, void *data)
 {
+    (void)input;
+    (void)x;
+    (void)y;
 	struct unlock_dialog *dialog = static_cast<struct unlock_dialog*>(data);
 
 	dialog->button_focused = 1;
@@ -1117,6 +1155,7 @@ static void
 unlock_dialog_widget_leave_handler(struct widget *widget,
         struct input *input, void *data)
 {
+    (void)input;
     struct unlock_dialog *dialog = static_cast<struct unlock_dialog*>(data);
 
 	dialog->button_focused = 0;
@@ -1170,6 +1209,7 @@ unlock_dialog_destroy(struct unlock_dialog *dialog)
 static void
 unlock_dialog_finish(struct task *task, uint32_t events)
 {
+    (void)events;
     Desktop *desktop = container_of(task, Desktop, unlock_task);
 
 	weston_desktop_shell_unlock(desktop->shell);
@@ -1190,10 +1230,10 @@ desktop_shell_configure(void *data,
 	s->configure(data, desktop_shell, edges, window, width, height);
 }
 
-static void
-desktop_shell_prepare_lock_surface(void *data,
+static void desktop_shell_prepare_lock_surface(void *data,
         struct weston_desktop_shell *desktop_shell)
 {
+    (void)desktop_shell;
     Desktop *desktop = static_cast<Desktop*>(data);
 
 	if (!desktop->locking) {
@@ -1210,6 +1250,7 @@ desktop_shell_prepare_lock_surface(void *data,
 static void desktop_shell_grab_cursor(void *data,
         struct weston_desktop_shell *desktop_shell, uint32_t cursor)
 {
+    (void)desktop_shell;
     Desktop *desktop = static_cast<Desktop*>(data);
 
 	switch (cursor) {
@@ -1370,8 +1411,7 @@ static void desktop_destroy_outputs(Desktop *desktop)
     }
 }
 
-static void
-output_handle_geometry(void *data,
+static void output_handle_geometry(void *data,
         struct wl_output *wl_output,
         int x, int y,
         int physical_width,
@@ -1381,6 +1421,12 @@ output_handle_geometry(void *data,
         const char *model,
         int transform)
 {
+    (void)wl_output;
+    (void)physical_width;
+    (void)physical_height;
+    (void)subpixel;
+    (void)make;
+    (void)model;
 	struct output *output = static_cast<struct output*>(data);
 
 	output->x = x;
@@ -1392,27 +1438,33 @@ output_handle_geometry(void *data,
 		window_set_buffer_transform(output->background->window, (enum wl_output_transform)transform);
 }
 
-static void
-output_handle_mode(void *data,
-		   struct wl_output *wl_output,
-		   uint32_t flags,
-		   int width,
-		   int height,
-		   int refresh)
+static void output_handle_mode(void *data,
+        struct wl_output *wl_output,
+        uint32_t flags,
+        int width,
+        int height,
+        int refresh)
 {
+    (void)data;
+    (void)wl_output;
+    (void)flags;
+    (void)width;
+    (void)height;
+    (void)refresh;
 }
 
-static void
-output_handle_done(void *data,
-                   struct wl_output *wl_output)
+static void output_handle_done(void *data,
+        struct wl_output *wl_output)
 {
+    (void)data;
+    (void)wl_output;
 }
 
-static void
-output_handle_scale(void *data,
-                    struct wl_output *wl_output,
-                    int32_t scale)
+static void output_handle_scale(void *data,
+        struct wl_output *wl_output,
+        int32_t scale)
 {
+    (void)wl_output;
     struct output *output = static_cast<struct output*>(data);
 
 	if (output->panel)
@@ -1521,10 +1573,11 @@ static void output_remove(Desktop *desktop, struct output *output)
 	output_destroy(output);
 }
 
-static void
-global_handler(struct display *display, uint32_t id,
+static void global_handler(struct display *display, uint32_t id,
         const char *interface, uint32_t version, void *data)
 {
+    (void)display;
+    (void)version;
     Desktop *desktop = static_cast<Desktop*>(data);
 
     if (!strcmp(interface, "weston_desktop_shell")) {
@@ -1542,12 +1595,12 @@ global_handler(struct display *display, uint32_t id,
     }
 }
 
-static void
-global_handler_remove(struct display *display, uint32_t id,
-	       const char *interface, uint32_t version, void *data)
+static void global_handler_remove(struct display *display, uint32_t id,
+        const char *interface, uint32_t version, void *data)
 {
+    (void)display;
+    (void)version;
     Desktop *desktop = static_cast<Desktop*>(data);
-	struct output *output;
 
 	if (!strcmp(interface, "wl_output")) {
         for (auto& output: desktop->outputs) {
