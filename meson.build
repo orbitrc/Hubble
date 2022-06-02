@@ -1,13 +1,13 @@
 project('weston',
 	'c', 'cpp',
-	version: '10.0.0',
+	version: '0.1.0',
 	default_options: [
 		'warning_level=3',
 		'c_std=gnu99',
 		'b_lundef=true',
 	],
 	meson_version: '>= 0.52.1',
-	license: 'MIT/Expat',
+	license: 'MIT',
 )
 
 libweston_major = 10
@@ -16,12 +16,12 @@ libweston_major = 10
 # library file naming, thanks to libtool
 version_weston = meson.project_version()
 version_weston_arr = version_weston.split('.')
-if libweston_major > version_weston_arr[0].to_int()
+if libweston_major > 10 # version_weston_arr[0].to_int()
 	if libweston_major > version_weston_arr[0].to_int() + 1
 		error('Bad versions in meson.build: libweston_major is too high')
 	endif
 	libweston_revision = 0
-elif libweston_major == version_weston_arr[0].to_int()
+elif libweston_major == 10 # version_weston_arr[0].to_int()
 	libweston_revision = version_weston_arr[2].to_int()
 else
 	error('Bad versions in meson.build: libweston_major is too low')
@@ -105,11 +105,11 @@ config_h.set('EGL_NO_X11', '1')
 config_h.set('MESA_EGL_NO_X11_HEADERS', '1')
 config_h.set('EGL_NO_PLATFORM_SPECIFIC_TYPES', '1')
 
-config_h.set_quoted('PACKAGE_STRING', 'weston @0@'.format(version_weston))
+config_h.set_quoted('PACKAGE_STRING', 'hubble @0@'.format(version_weston))
 config_h.set_quoted('PACKAGE_VERSION', version_weston)
 config_h.set_quoted('VERSION', version_weston)
-config_h.set_quoted('PACKAGE_URL', 'https://wayland.freedesktop.org')
-config_h.set_quoted('PACKAGE_BUGREPORT', 'https://gitlab.freedesktop.org/wayland/weston/issues/')
+config_h.set_quoted('PACKAGE_URL', 'https://github.com/orbitrc/Hubble')
+config_h.set_quoted('PACKAGE_BUGREPORT', 'https://github.com/orbitrc/Hubble/issues')
 
 config_h.set_quoted('BINDIR', dir_bin)
 config_h.set_quoted('DATADIR', dir_data)

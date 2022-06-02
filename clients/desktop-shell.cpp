@@ -1607,6 +1607,8 @@ int main(int argc, char *argv[])
 	struct weston_config_section *s;
 	const char *config_file;
 
+    fprintf(stderr, "== BEGIN desktop-shell.cpp main() ==\n");
+
 	desktop.unlock_task.run = unlock_dialog_finish;
     // wl_list_init(&desktop.outputs);
 
