@@ -45,7 +45,7 @@
 #include "shared/timespec-util.h"
 #include <libweston-desktop/libweston-desktop.h>
 
-#define DEFAULT_NUM_WORKSPACES 1
+#define DEFAULT_NUM_WORKSPACES 4
 #define DEFAULT_WORKSPACE_CHANGE_ANIMATION_LENGTH 200
 
 struct focus_state {
@@ -4981,90 +4981,93 @@ shell_destroy(struct wl_listener *listener, void *data)
 	free(shell);
 }
 
-static void
-shell_add_bindings(struct weston_compositor *ec, struct desktop_shell *shell)
+static void shell_add_bindings(struct weston_compositor *ec,
+        struct desktop_shell *shell)
 {
-	uint32_t mod;
-	int i, num_workspace_bindings;
+    uint32_t mod;
+    int i, num_workspace_bindings;
 
-	if (shell->allow_zap)
-		weston_compositor_add_key_binding(ec, KEY_BACKSPACE,
-					          MODIFIER_CTRL | MODIFIER_ALT,
-					          terminate_binding, ec);
+    if (shell->allow_zap) {
+        weston_compositor_add_key_binding(ec, KEY_BACKSPACE,
+                                          MODIFIER_CTRL | MODIFIER_ALT,
+                                          terminate_binding, ec);
+    }
 
-	/* fixed bindings */
-	weston_compositor_add_button_binding(ec, BTN_LEFT, 0,
-					     click_to_activate_binding,
-					     shell);
-	weston_compositor_add_button_binding(ec, BTN_RIGHT, 0,
-					     click_to_activate_binding,
-					     shell);
-	weston_compositor_add_touch_binding(ec, 0,
-					    touch_to_activate_binding,
-					    shell);
-	weston_compositor_add_key_binding(ec, KEY_BRIGHTNESSDOWN, 0,
-				          backlight_binding, ec);
-	weston_compositor_add_key_binding(ec, KEY_BRIGHTNESSUP, 0,
-				          backlight_binding, ec);
+    // fixed bindings
+    weston_compositor_add_button_binding(ec, BTN_LEFT, 0,
+                                         click_to_activate_binding,
+                                         shell);
+    weston_compositor_add_button_binding(ec, BTN_RIGHT, 0,
+                                         click_to_activate_binding,
+                                         shell);
+    weston_compositor_add_touch_binding(ec, 0,
+                                        touch_to_activate_binding,
+                                        shell);
+    weston_compositor_add_key_binding(ec, KEY_BRIGHTNESSDOWN, 0,
+                                      backlight_binding, ec);
+    weston_compositor_add_key_binding(ec, KEY_BRIGHTNESSUP, 0,
+                                      backlight_binding, ec);
 
-	/* configurable bindings */
-	if (shell->exposay_modifier)
-		weston_compositor_add_modifier_binding(ec, shell->exposay_modifier,
-						       exposay_binding, shell);
+    // configurable bindings
+    if (shell->exposay_modifier) {
+        weston_compositor_add_modifier_binding(ec, shell->exposay_modifier,
+                                               exposay_binding, shell);
+    }
 
-	mod = shell->binding_modifier;
-	if (!mod)
-		return;
+    mod = shell->binding_modifier;
+    if (!mod)
+        return;
 
-	/* This binding is not configurable, but is only enabled if there is a
-	 * valid binding modifier. */
-	weston_compositor_add_axis_binding(ec, WL_POINTER_AXIS_VERTICAL_SCROLL,
-				           MODIFIER_SUPER | MODIFIER_ALT,
-				           surface_opacity_binding, NULL);
+    // This binding is not configurable, but is only enabled if there is a
+    // valid binding modifier.
+    weston_compositor_add_axis_binding(ec, WL_POINTER_AXIS_VERTICAL_SCROLL,
+                                       MODIFIER_SUPER | MODIFIER_ALT,
+                                       surface_opacity_binding, NULL);
 
-	weston_compositor_add_axis_binding(ec, WL_POINTER_AXIS_VERTICAL_SCROLL,
-					   mod, zoom_axis_binding,
-					   NULL);
+    weston_compositor_add_axis_binding(ec, WL_POINTER_AXIS_VERTICAL_SCROLL,
+                                       mod, zoom_axis_binding,
+                                       NULL);
 
-	weston_compositor_add_key_binding(ec, KEY_PAGEUP, mod,
-					  zoom_key_binding, NULL);
-	weston_compositor_add_key_binding(ec, KEY_PAGEDOWN, mod,
-					  zoom_key_binding, NULL);
-	weston_compositor_add_key_binding(ec, KEY_M, mod | MODIFIER_SHIFT,
-					  maximize_binding, NULL);
-	weston_compositor_add_key_binding(ec, KEY_F, mod | MODIFIER_SHIFT,
-					  fullscreen_binding, NULL);
-	weston_compositor_add_button_binding(ec, BTN_LEFT, mod, move_binding,
-					     shell);
-	weston_compositor_add_touch_binding(ec, mod, touch_move_binding, shell);
-	weston_compositor_add_button_binding(ec, BTN_RIGHT, mod,
-					     resize_binding, shell);
-	weston_compositor_add_button_binding(ec, BTN_LEFT,
-					     mod | MODIFIER_SHIFT,
-					     resize_binding, shell);
+    weston_compositor_add_key_binding(ec, KEY_PAGEUP, mod,
+                                      zoom_key_binding, NULL);
+    weston_compositor_add_key_binding(ec, KEY_PAGEDOWN, mod,
+                                      zoom_key_binding, NULL);
+    weston_compositor_add_key_binding(ec, KEY_M, mod | MODIFIER_SHIFT,
+                                      maximize_binding, NULL);
+    weston_compositor_add_key_binding(ec, KEY_F, mod | MODIFIER_SHIFT,
+                                      fullscreen_binding, NULL);
+    weston_compositor_add_button_binding(ec, BTN_LEFT, mod, move_binding,
+                                         shell);
+    weston_compositor_add_touch_binding(ec, mod, touch_move_binding, shell);
+    weston_compositor_add_button_binding(ec, BTN_RIGHT, mod,
+                                         resize_binding, shell);
+    weston_compositor_add_button_binding(ec, BTN_LEFT,
+                                         mod | MODIFIER_SHIFT,
+                                         resize_binding, shell);
 
-	if (ec->capabilities & WESTON_CAP_ROTATION_ANY)
-		weston_compositor_add_button_binding(ec, BTN_MIDDLE, mod,
-						     rotate_binding, NULL);
+    if (ec->capabilities & WESTON_CAP_ROTATION_ANY) {
+        weston_compositor_add_button_binding(ec, BTN_MIDDLE, mod,
+                                             rotate_binding, NULL);
+    }
 
-	weston_compositor_add_key_binding(ec, KEY_TAB, mod, switcher_binding,
-					  shell);
-	weston_compositor_add_key_binding(ec, KEY_F9, mod, backlight_binding,
-					  ec);
-	weston_compositor_add_key_binding(ec, KEY_F10, mod, backlight_binding,
-					  ec);
-	weston_compositor_add_key_binding(ec, KEY_K, mod,
-				          force_kill_binding, shell);
-	weston_compositor_add_key_binding(ec, KEY_UP, mod,
-					  workspace_up_binding, shell);
-	weston_compositor_add_key_binding(ec, KEY_DOWN, mod,
-					  workspace_down_binding, shell);
-	weston_compositor_add_key_binding(ec, KEY_UP, mod | MODIFIER_SHIFT,
-					  workspace_move_surface_up_binding,
-					  shell);
-	weston_compositor_add_key_binding(ec, KEY_DOWN, mod | MODIFIER_SHIFT,
-					  workspace_move_surface_down_binding,
-					  shell);
+    weston_compositor_add_key_binding(ec, KEY_TAB, mod,
+                                      switcher_binding, shell);
+    weston_compositor_add_key_binding(ec, KEY_F9, mod,
+                                      backlight_binding, ec);
+    weston_compositor_add_key_binding(ec, KEY_F10, mod,
+                                      backlight_binding, ec);
+    weston_compositor_add_key_binding(ec, KEY_K, mod,
+                                      force_kill_binding, shell);
+    weston_compositor_add_key_binding(ec, KEY_UP, MODIFIER_CTRL | MODIFIER_ALT,
+                                      workspace_up_binding, shell);
+    weston_compositor_add_key_binding(ec, KEY_DOWN, MODIFIER_CTRL | MODIFIER_ALT,
+                                      workspace_down_binding, shell);
+    weston_compositor_add_key_binding(ec, KEY_UP, mod | MODIFIER_SHIFT,
+                                      workspace_move_surface_up_binding,
+                                      shell);
+    weston_compositor_add_key_binding(ec, KEY_DOWN, mod | MODIFIER_SHIFT,
+                                      workspace_move_surface_down_binding,
+                                      shell);
 
 	/* Add bindings for mod+F[1-6] for workspace 1 to 6. */
 	if (shell->workspaces.num > 1) {
