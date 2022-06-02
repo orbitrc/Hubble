@@ -64,25 +64,16 @@
 
 #include "weston-desktop-shell-client-protocol.h"
 
-#define DEFAULT_CLOCK_FORMAT CLOCK_FORMAT_MINUTES
 #define DEFAULT_SPACING 10
 
 extern char **environ; /* defined by libc */
-
-enum clock_format {
-    CLOCK_FORMAT_MINUTES,
-    CLOCK_FORMAT_SECONDS,
-    CLOCK_FORMAT_MINUTES_24H,
-    CLOCK_FORMAT_SECONDS_24H,
-    CLOCK_FORMAT_NONE
-};
-
 
 enum class ClockFormat {
     Minutes,
     Seconds,
     Minutes24h,
     Seconds24h,
+    Iso,
     None,
 };
 
@@ -300,7 +291,7 @@ void Desktop::parse_clock_format(struct weston_config_section *s)
     else if (strcmp(clock_format, "none") == 0)
         this->clock_format = ClockFormat::None;
     else
-        this->clock_format = ClockFormat::Minutes;
+        this->clock_format = ClockFormat::Iso;
     free(clock_format);
 }
 
@@ -605,6 +596,10 @@ static void panel_add_clock(struct panel *panel)
 	panel->clock = clock;
 
 	switch (panel->clock_format) {
+    case ClockFormat::Iso:
+        clock->format_string = "%Y-%m-%dT%H:%M:%S";
+        clock->refresh_timer = 1;
+        break;
     case ClockFormat::Minutes:
 		clock->format_string = "%a %b %d, %I:%M %p";
 		clock->refresh_timer = 60;
