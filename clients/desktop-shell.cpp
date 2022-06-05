@@ -697,6 +697,7 @@ static void panel_configure(void *data,
 	case WESTON_DESKTOP_SHELL_PANEL_POSITION_LEFT:
 	case WESTON_DESKTOP_SHELL_PANEL_POSITION_RIGHT:
 		switch (desktop->clock_format) {
+        case ClockFormat::Iso:
         case ClockFormat::None:
 			width = 32;
 			break;

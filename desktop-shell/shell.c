@@ -5097,6 +5097,8 @@ WL_EXPORT int
 wet_shell_init(struct weston_compositor *ec,
 	       int *argc, char *argv[])
 {
+    fprintf(stderr, "== BEGIN wet_shell_init() ==\n");
+
 	struct weston_seat *seat;
 	struct desktop_shell *shell;
 	struct workspace **pws;
