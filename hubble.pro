@@ -2,7 +2,8 @@ CONFIG += link_pkgconfig
 
 PKGCONFIG += cairo
 
-INCLUDEPATH += include
+INCLUDEPATH += include \
+    .
 
 SOURCES += clients/desktop-shell.cpp \
     shared/cairo-util.c \

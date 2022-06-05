@@ -62,7 +62,7 @@
 #include "shared/file-util.h"
 #include "shared/timespec-util.h"
 
-#include "weston-desktop-shell-client-protocol.h"
+#include <wayland-protocols/weston/weston-desktop-shell-client-protocol.h>
 
 #define DEFAULT_SPACING 10
 

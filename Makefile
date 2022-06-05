@@ -7,3 +7,4 @@ default:
 protocols:
 	wayland-scanner client-header $(WAYLAND_PROTOCOLS_STABLE_DIR)/xdg-shell/xdg-shell.xml wayland-protocols/stable/xdg-shell.h
 	wayland-scanner private-code $(WAYLAND_PROTOCOLS_STABLE_DIR)/xdg-shell/xdg-shell.xml wayland-protocols/stable/xdg-shell.c
+	wayland-scanner client-header protocol/weston-desktop-shell.xml wayland-protocols/weston/weston-desktop-shell-client-protocol.h

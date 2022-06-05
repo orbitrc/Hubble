@@ -16,3 +16,5 @@ build/
 
 wayland-protocols/stable/*.h
 wayland-protocols/stable/*.c
+wayland-protocols/weston/*.h
+wayland-protocols/weston/*.c
