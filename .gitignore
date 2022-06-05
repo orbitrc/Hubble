@@ -13,3 +13,6 @@ TAGS
 *.pro.user
 
 build/
+
+wayland-protocols/stable/*.h
+wayland-protocols/stable/*.c
