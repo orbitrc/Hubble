@@ -38,12 +38,13 @@
 
 #include "shell.h"
 #include "compositor/weston.h"
-#include "weston-desktop-shell-server-protocol.h"
 #include <libweston/config-parser.h>
 #include "shared/helpers.h"
 #include "shared/shell-utils.h"
 #include "shared/timespec-util.h"
 #include <libweston-desktop/libweston-desktop.h>
+
+#include <wayland-protocols/weston/weston-desktop-shell-server-protocol.h>
 
 #define DEFAULT_NUM_WORKSPACES 4
 #define DEFAULT_WORKSPACE_CHANGE_ANIMATION_LENGTH 200
@@ -5099,24 +5100,23 @@ wet_shell_init(struct weston_compositor *ec,
 {
     fprintf(stderr, "== BEGIN wet_shell_init() ==\n");
 
-	struct weston_seat *seat;
-	struct desktop_shell *shell;
-	struct workspace **pws;
-	unsigned int i;
-	struct wl_event_loop *loop;
+    struct weston_seat *seat;
+    struct desktop_shell *shell;
+    struct workspace **pws;
+    struct wl_event_loop *loop;
 
-	shell = zalloc(sizeof *shell);
-	if (shell == NULL)
-		return -1;
+    shell = zalloc(sizeof *shell);
+    if (shell == NULL) {
+        return -1;
+    }
 
-	shell->compositor = ec;
+    shell->compositor = ec;
 
-	if (!weston_compositor_add_destroy_listener_once(ec,
-							 &shell->destroy_listener,
-							 shell_destroy)) {
-		free(shell);
-		return 0;
-	}
+    if (!weston_compositor_add_destroy_listener_once(ec,
+            &shell->destroy_listener, shell_destroy)) {
+        free(shell);
+        return 0;
+    }
 
 	shell->idle_listener.notify = idle_handler;
 	wl_signal_add(&ec->idle_signal, &shell->idle_listener);
@@ -5154,15 +5154,17 @@ wet_shell_init(struct weston_compositor *ec,
 	shell->exposay.state_cur = EXPOSAY_LAYOUT_INACTIVE;
 	shell->exposay.state_target = EXPOSAY_TARGET_CANCEL;
 
-	for (i = 0; i < shell->workspaces.num; i++) {
-		pws = wl_array_add(&shell->workspaces.array, sizeof *pws);
-		if (pws == NULL)
-			return -1;
+    for (unsigned int i = 0; i < shell->workspaces.num; i++) {
+        pws = wl_array_add(&shell->workspaces.array, sizeof *pws);
+        if (pws == NULL) {
+            return -1;
+        }
 
-		*pws = workspace_create(shell);
-		if (*pws == NULL)
-			return -1;
-	}
+        *pws = workspace_create(shell);
+        if (*pws == NULL) {
+            return -1;
+        }
+    }
 	activate_workspace(shell, 0);
 
 	weston_layer_init(&shell->minimized_layer, ec);
