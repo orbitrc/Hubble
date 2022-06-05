@@ -901,18 +901,17 @@ enum {
 	BACKGROUND_CENTERED
 };
 
-static void
-background_draw(struct widget *widget, void *data)
+static void background_draw(struct widget *widget, void *data)
 {
-	struct background *background = static_cast<struct background*>(data);
-	cairo_surface_t *surface, *image;
-	cairo_pattern_t *pattern;
-	cairo_matrix_t matrix;
-	cairo_t *cr;
-	double im_w, im_h;
-	double sx, sy, s;
-	double tx, ty;
-	struct rectangle allocation;
+    struct background *background = static_cast<struct background*>(data);
+    cairo_surface_t *surface, *image;
+    cairo_pattern_t *pattern;
+    cairo_matrix_t matrix;
+    cairo_t *cr;
+    double im_w, im_h;
+    double sx, sy, s;
+    double tx, ty;
+    struct rectangle allocation;
 
 	surface = window_get_surface(background->window);
 
@@ -1692,7 +1691,7 @@ int main(int argc, char *argv[])
         }
     }
 
-	grab_surface_create(&desktop);
+    grab_surface_create(&desktop);
 
 	signal(SIGCHLD, sigchild_handler);
 
