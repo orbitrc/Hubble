@@ -101,6 +101,8 @@ struct focus_state;
 
 namespace hb {
 
+class FocusState;
+
 //================
 // Focus Surface
 //================
@@ -140,7 +142,7 @@ public:
 
     struct weston_layer* layer();
 
-    pr::Vector<struct focus_state*>& focus_list();
+    pr::Vector<FocusState*>& focus_list();
 
     FocusSurface* focus_surface_front();
     void set_focus_surface_front(FocusSurface *front);
@@ -157,11 +159,34 @@ public:
 private:
     struct weston_layer _layer;
 
-    pr::Vector<struct focus_state*> _focus_list;
+    pr::Vector<FocusState*> _focus_list;
 
     hb::FocusSurface *_fsurf_front;
     hb::FocusSurface *_fsurf_back;
     struct weston_view_animation *_focus_animation;
+};
+
+//==============
+// Focus State
+//==============
+class FocusState
+{
+public:
+    FocusState(struct desktop_shell *shell,
+               struct weston_seat *seat,
+               hb::Workspace *ws);
+    ~FocusState();
+
+    void set_focus(struct weston_surface *surface);
+
+    struct desktop_shell *shell;
+    struct weston_seat *seat;
+    hb::Workspace *ws;
+    struct weston_surface *keyboard_focus;
+    struct wl_list link;
+    struct wl_listener seat_destroy_listener;
+    struct wl_listener surface_destroy_listener;
+private:
 };
 
 } // namespace hb

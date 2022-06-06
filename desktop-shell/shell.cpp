@@ -55,16 +55,6 @@ namespace hb {
 class Workspace;
 }
 
-struct focus_state {
-	struct desktop_shell *shell;
-	struct weston_seat *seat;
-    hb::Workspace *ws;
-	struct weston_surface *keyboard_focus;
-	struct wl_list link;
-	struct wl_listener seat_destroy_listener;
-	struct wl_listener surface_destroy_listener;
-};
-
 /*
  * Surface stacking and ordering.
  *
@@ -644,6 +634,53 @@ struct weston_transform* hb::FocusSurface::workspace_transform_ptr()
     return &(this->_workspace_transform);
 }
 
+//=================
+// Focus State
+//=================
+static void focus_state_seat_destroy(struct wl_listener *listener, void *data);
+static void focus_state_surface_destroy(struct wl_listener *listener, void *data);
+
+hb::FocusState::FocusState(struct desktop_shell *shell,
+        struct weston_seat *seat,
+        hb::Workspace *ws)
+{
+    fprintf(stderr, " [DEBUG] hb::FocusState::FocusState()\n");
+
+    this->shell = shell;
+    this->keyboard_focus = NULL;
+    this->ws = ws;
+    this->seat = seat;
+//	wl_list_insert(&ws->focus_list, &state->link);
+    ws->focus_list().push(this);
+
+    this->seat_destroy_listener.notify = focus_state_seat_destroy;
+    this->surface_destroy_listener.notify = focus_state_surface_destroy;
+    wl_signal_add(&seat->destroy_signal,
+        &this->seat_destroy_listener);
+    wl_list_init(&this->surface_destroy_listener.link);
+}
+
+hb::FocusState::~FocusState()
+{
+    wl_list_remove(&this->seat_destroy_listener.link);
+    wl_list_remove(&this->surface_destroy_listener.link);
+}
+
+void hb::FocusState::set_focus(struct weston_surface *surface)
+{
+    fprintf(stderr, " [DEBUG] BEGIN hb::FocusState::set_focus(). state: %p\n", this);
+    if (this->keyboard_focus) {
+        wl_list_remove(&this->surface_destroy_listener.link);
+        wl_list_init(&this->surface_destroy_listener.link);
+    }
+
+    this->keyboard_focus = surface;
+    if (surface) {
+        wl_signal_add(&surface->destroy_signal,
+            &this->surface_destroy_listener);
+    }
+}
+
 
 static void
 focus_animation_done(struct weston_view_animation *animation, void *data)
@@ -654,33 +691,24 @@ focus_animation_done(struct weston_view_animation *animation, void *data)
     workspace->set_focus_animation(nullptr);
 }
 
-static void
-focus_state_destroy(struct focus_state *state)
-{
-	wl_list_remove(&state->seat_destroy_listener.link);
-	wl_list_remove(&state->surface_destroy_listener.link);
-	free(state);
-}
-
-static void
-focus_state_seat_destroy(struct wl_listener *listener, void *data)
+static void focus_state_seat_destroy(struct wl_listener *listener, void *data)
 {
     (void)data;
-	struct focus_state *state = container_of(listener,
-						 struct focus_state,
-						 seat_destroy_listener);
+    hb::FocusState *state = container_of(listener,
+        hb::FocusState,
+        seat_destroy_listener);
 
-	wl_list_remove(&state->link);
-	focus_state_destroy(state);
+    wl_list_remove(&state->link);
+    delete state;
 }
 
 static void
 focus_state_surface_destroy(struct wl_listener *listener, void *data)
 {
     (void)data;
-	struct focus_state *state = container_of(listener,
-						 struct focus_state,
-						 surface_destroy_listener);
+    hb::FocusState *state = container_of(listener,
+        hb::FocusState,
+        surface_destroy_listener);
 	struct weston_surface *main_surface;
 	struct weston_view *next;
 	struct weston_view *view;
@@ -726,43 +754,15 @@ focus_state_surface_destroy(struct wl_listener *listener, void *data)
         }
 
 		wl_list_remove(&state->link);
-		focus_state_destroy(state);
+        delete state;
 	}
 }
 
-static struct focus_state* focus_state_create(struct desktop_shell *shell,
-        struct weston_seat *seat,
-        hb::Workspace *ws)
-{
-    fprintf(stderr, " [DEBUG] focus_state_create()\n");
-    struct focus_state *state;
-
-    state = (struct focus_state*)malloc(sizeof *state);
-    if (state == NULL) {
-        return NULL;
-    }
-
-	state->shell = shell;
-	state->keyboard_focus = NULL;
-	state->ws = ws;
-	state->seat = seat;
-//	wl_list_insert(&ws->focus_list, &state->link);
-    ws->focus_list().push(state);
-
-	state->seat_destroy_listener.notify = focus_state_seat_destroy;
-	state->surface_destroy_listener.notify = focus_state_surface_destroy;
-	wl_signal_add(&seat->destroy_signal,
-		      &state->seat_destroy_listener);
-	wl_list_init(&state->surface_destroy_listener.link);
-
-	return state;
-}
-
-static struct focus_state* ensure_focus_state(struct desktop_shell *shell, struct weston_seat *seat)
+static hb::FocusState* ensure_focus_state(struct desktop_shell *shell, struct weston_seat *seat)
 {
     fprintf(stderr, " [DEBUG] BEGIN ensure_focus_state()\n");
     hb::Workspace *ws = get_current_workspace(shell);
-    struct focus_state *state = nullptr;
+    hb::FocusState *state = nullptr;
 
 //	wl_list_for_each(state, &ws->focus_list, link)
 //		if (state->seat == seat)
@@ -775,7 +775,7 @@ static struct focus_state* ensure_focus_state(struct desktop_shell *shell, struc
     }
 
     if (state == nullptr) {
-        state = focus_state_create(shell, seat, ws);
+        state = new hb::FocusState(shell, seat, ws);
     }
 
 //	if (&state->link == &ws->focus_list)
@@ -785,28 +785,9 @@ static struct focus_state* ensure_focus_state(struct desktop_shell *shell, struc
     return state;
 }
 
-static void focus_state_set_focus(struct focus_state *state,
-        struct weston_surface *surface)
-{
-    fprintf(stderr, " [DEBUG] BEGIN focus_state_set_focus(). state: %p\n", state);
-    if (state->keyboard_focus) {
-        fprintf(stderr, " [DEUBG]     first if %p\n", &state->surface_destroy_listener);
-        wl_list_remove(&state->surface_destroy_listener.link);
-        fprintf(stderr, " [DEBUG]     wl_list_init\n");
-        wl_list_init(&state->surface_destroy_listener.link);
-    }
-
-    state->keyboard_focus = surface;
-    if (surface) {
-        wl_signal_add(&surface->destroy_signal,
-            &state->surface_destroy_listener);
-    }
-}
-
 static void
 restore_focus_state(struct desktop_shell *shell, hb::Workspace *ws)
 {
-	struct focus_state *state, *next;
 	struct weston_surface *surface;
 	struct wl_list pending_seat_list;
 	struct weston_seat *seat, *next_seat;
@@ -881,7 +862,7 @@ static void replace_focus_state(struct desktop_shell *shell, hb::Workspace *ws,
     */
     for (auto& state: ws->focus_list()) {
         if (state->seat == seat) {
-            focus_state_set_focus(state, keyboard->focus);
+            state->set_focus(keyboard->focus);
             return;
         }
     }
@@ -897,7 +878,7 @@ static void drop_focus_state(struct desktop_shell *shell, hb::Workspace *ws,
     */
     for (auto& state: ws->focus_list()) {
         if (state->keyboard_focus == surface) {
-            focus_state_set_focus(state, NULL);
+            state->set_focus(NULL);
         }
     }
 }
@@ -980,7 +961,7 @@ static void seat_destroyed(struct wl_listener *listener, void *data)
     fprintf(stderr, " [DEBUG] BEGIN seat_destroyed()\n");
 
     struct weston_seat *seat = static_cast<struct weston_seat*>(data);
-    struct focus_state *state, *next;
+    hb::FocusState *state, *next;
     hb::Workspace *ws = container_of(listener,
                         hb::Workspace,
                         seat_destroyed_listener);
@@ -1020,10 +1001,8 @@ static void desktop_shell_destroy_views_on_layer(struct weston_layer*);
 
 hb::Workspace::~Workspace()
 {
-    struct focus_state *state, *next;
-
     for (auto& val: this->_focus_list) {
-        focus_state_destroy(val);
+        delete val;
     }
 
     if (this->_fsurf_front) {
@@ -1052,7 +1031,7 @@ struct weston_layer* hb::Workspace::layer()
     return &(this->_layer);
 }
 
-pr::Vector<struct focus_state*>& hb::Workspace::focus_list()
+pr::Vector<hb::FocusState*>& hb::Workspace::focus_list()
 {
     return this->_focus_list;
 }
@@ -1464,7 +1443,7 @@ static void take_surface_to_workspace_by_seat(struct desktop_shell *shell,
 	struct shell_surface *shsurf;
     hb::Workspace *from;
     hb::Workspace *to;
-	struct focus_state *state;
+    hb::FocusState *state;
 
 	surface = weston_surface_get_main_surface(keyboard->focus);
 	view = get_default_view(surface);
@@ -1510,9 +1489,10 @@ static void take_surface_to_workspace_by_seat(struct desktop_shell *shell,
 		animate_workspace_change(shell, index, from, to);
 	}
 
-	state = ensure_focus_state(shell, seat);
-	if (state != NULL)
-		focus_state_set_focus(state, surface);
+    state = ensure_focus_state(shell, seat);
+    if (state != NULL) {
+        state->set_focus(surface);
+    }
 }
 
 static void
@@ -3927,7 +3907,7 @@ void activate(struct desktop_shell *shell, struct weston_view *view,
     fprintf(stderr, " [DEBUG] BEGIN activate()\n");
 	struct weston_surface *es = view->surface;
 	struct weston_surface *main_surface;
-	struct focus_state *state;
+    hb::FocusState *state;
     hb::Workspace *ws;
 	struct weston_surface *old_es;
 	struct shell_surface *shsurf, *shsurf_child;
@@ -3969,7 +3949,7 @@ void activate(struct desktop_shell *shell, struct weston_view *view,
 
     fprintf(stderr, " [DEBUG]    MIDDLE\n");
     old_es = state->keyboard_focus;
-    focus_state_set_focus(state, es);
+    state->set_focus(es);
     fprintf(stderr, " [DEBUG]    ERROR HERE!\n");
 
 	if (weston_desktop_surface_get_fullscreen(shsurf->desktop_surface) &&
