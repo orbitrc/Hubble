@@ -34,6 +34,10 @@ struct weston_solid_color_surface {
 	float r, g, b;
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct weston_output *
 get_default_output(struct weston_compositor *compositor);
 
@@ -56,3 +60,7 @@ struct weston_view *
 create_solid_color_surface(struct weston_compositor *compositor,
 			   struct weston_solid_color_surface *ss,
 			   float x, float y, int w, int h);
+
+#ifdef __cplusplus
+}
+#endif

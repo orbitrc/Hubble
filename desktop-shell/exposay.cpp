@@ -92,7 +92,8 @@ exposay_in_flight_dec(struct desktop_shell *shell)
 static void
 exposay_animate_in_done(struct weston_view_animation *animation, void *data)
 {
-	struct exposay_surface *esurface = data;
+    struct exposay_surface *esurface =
+        static_cast<struct exposay_surface*>(data);
 
 	wl_list_insert(&esurface->view->geometry.transformation_list,
 	               &esurface->transform.link);
@@ -125,7 +126,8 @@ exposay_animate_in(struct exposay_surface *esurface)
 static void
 exposay_animate_out_done(struct weston_view_animation *animation, void *data)
 {
-	struct exposay_surface *esurface = data;
+    struct exposay_surface *esurface =
+        static_cast<struct exposay_surface*>(data);
 	struct desktop_shell *shell = esurface->shell;
 
 	exposay_surface_destroy(esurface);
@@ -321,7 +323,7 @@ exposay_layout(struct desktop_shell *shell, struct shell_output *shell_output)
 		if (view->output != output)
 			continue;
 
-		esurface = malloc(sizeof(*esurface));
+        esurface = (struct exposay_surface*)malloc(sizeof(*esurface));
 		if (!esurface) {
 			exposay_set_state(shell, EXPOSAY_TARGET_CANCEL,
 			                  shell->exposay.seat);
@@ -412,7 +414,8 @@ exposay_button(struct weston_pointer_grab *grab, const struct timespec *time,
 	struct desktop_shell *shell =
 		container_of(grab, struct desktop_shell, exposay.grab_ptr);
 	struct weston_seat *seat = grab->pointer->seat;
-	enum wl_pointer_button_state state = state_w;
+    enum wl_pointer_button_state state =
+        static_cast<enum wl_pointer_button_state>(state_w);
 
 	if (button != BTN_LEFT)
 		return;
@@ -490,7 +493,8 @@ exposay_key(struct weston_keyboard_grab *grab, const struct timespec *time,
 	struct weston_seat *seat = grab->keyboard->seat;
 	struct desktop_shell *shell =
 		container_of(grab, struct desktop_shell, exposay.grab_kbd);
-	enum wl_keyboard_key_state state = state_w;
+    enum wl_keyboard_key_state state =
+        static_cast<enum wl_keyboard_key_state>(state_w);
 
 	if (state != WL_KEYBOARD_KEY_STATE_RELEASED)
 		return;
@@ -731,7 +735,7 @@ void
 exposay_binding(struct weston_keyboard *keyboard, enum weston_keyboard_modifier modifier,
 		void *data)
 {
-	struct desktop_shell *shell = data;
+    struct desktop_shell *shell = static_cast<struct desktop_shell*>(data);
 
 	exposay_set_state(shell, EXPOSAY_TARGET_OVERVIEW, keyboard->seat);
 }

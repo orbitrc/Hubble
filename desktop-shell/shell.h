@@ -30,7 +30,9 @@
 #include <libweston/libweston.h>
 #include <libweston/xwayland-api.h>
 
-#include "weston-desktop-shell-server-protocol.h"
+#include <primer/vector.h>
+
+#include <wayland-protocols/weston/weston-desktop-shell-server-protocol.h>
 
 enum animation_type {
 	ANIMATION_NONE,
@@ -176,7 +178,8 @@ struct desktop_shell {
 	struct wl_listener lock_surface_listener;
 
 	struct {
-		struct wl_array array;
+//		struct wl_array array;
+        pr::Vector<struct workspace*> array;
 		unsigned int current;
 		unsigned int num;
 
@@ -221,6 +224,10 @@ struct desktop_shell {
 	struct timespec startup_time;
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct weston_output *
 get_default_output(struct weston_compositor *compositor);
 
@@ -262,3 +269,7 @@ void
 shell_for_each_layer(struct desktop_shell *shell,
 		     shell_for_each_layer_func_t func,
 		     void *data);
+
+#ifdef __cplusplus
+}
+#endif

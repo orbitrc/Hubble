@@ -54,7 +54,8 @@ struct input_panel_surface {
 static void
 input_panel_slide_done(struct weston_view_animation *animation, void *data)
 {
-	struct input_panel_surface *ipsurf = data;
+    struct input_panel_surface *ipsurf =
+        static_cast<struct input_panel_surface*>(data);
 
 	ipsurf->anim = NULL;
 }
@@ -185,7 +186,8 @@ input_panel_get_label(struct weston_surface *surface, char *buf, size_t len)
 static void
 input_panel_committed(struct weston_surface *surface, int32_t sx, int32_t sy)
 {
-	struct input_panel_surface *ip_surface = surface->committed_private;
+    struct input_panel_surface *ip_surface =
+        static_cast<struct input_panel_surface*>(surface->committed_private);
 	struct desktop_shell *shell = ip_surface->shell;
 	float x, y;
 
@@ -215,14 +217,14 @@ destroy_input_panel_surface(struct input_panel_surface *input_panel_surface)
 	free(input_panel_surface);
 }
 
-static struct input_panel_surface *
-get_input_panel_surface(struct weston_surface *surface)
+static struct input_panel_surface* get_input_panel_surface(struct weston_surface *surface)
 {
-	if (surface->committed == input_panel_committed) {
-		return surface->committed_private;
-	} else {
-		return NULL;
-	}
+    if (surface->committed == input_panel_committed) {
+        return static_cast<struct input_panel_surface*>(
+            surface->committed_private);
+    } else {
+        return NULL;
+    }
 }
 
 static void
@@ -245,7 +247,7 @@ create_input_panel_surface(struct desktop_shell *shell,
 {
 	struct input_panel_surface *input_panel_surface;
 
-	input_panel_surface = calloc(1, sizeof *input_panel_surface);
+    input_panel_surface = (struct input_panel_surface*)calloc(1, sizeof *input_panel_surface);
 	if (!input_panel_surface)
 		return NULL;
 
@@ -274,8 +276,8 @@ input_panel_surface_set_toplevel(struct wl_client *client,
 				 struct wl_resource *output_resource,
 				 uint32_t position)
 {
-	struct input_panel_surface *input_panel_surface =
-		wl_resource_get_user_data(resource);
+    struct input_panel_surface *input_panel_surface =
+        static_cast<struct input_panel_surface*>(wl_resource_get_user_data(resource));
 	struct desktop_shell *shell = input_panel_surface->shell;
 	struct weston_head *head;
 
@@ -291,8 +293,8 @@ static void
 input_panel_surface_set_overlay_panel(struct wl_client *client,
 				      struct wl_resource *resource)
 {
-	struct input_panel_surface *input_panel_surface =
-		wl_resource_get_user_data(resource);
+    struct input_panel_surface *input_panel_surface =
+        static_cast<struct input_panel_surface*>(wl_resource_get_user_data(resource));
 	struct desktop_shell *shell = input_panel_surface->shell;
 
 	wl_list_insert(&shell->input_panel.surfaces,
@@ -309,8 +311,8 @@ static const struct zwp_input_panel_surface_v1_interface input_panel_surface_imp
 static void
 destroy_input_panel_surface_resource(struct wl_resource *resource)
 {
-	struct input_panel_surface *ipsurf =
-		wl_resource_get_user_data(resource);
+    struct input_panel_surface *ipsurf =
+        static_cast<struct input_panel_surface*>(wl_resource_get_user_data(resource));
 
 	destroy_input_panel_surface(ipsurf);
 }
@@ -321,9 +323,10 @@ input_panel_get_input_panel_surface(struct wl_client *client,
 				    uint32_t id,
 				    struct wl_resource *surface_resource)
 {
-	struct weston_surface *surface =
-		wl_resource_get_user_data(surface_resource);
-	struct desktop_shell *shell = wl_resource_get_user_data(resource);
+    struct weston_surface *surface =
+        static_cast<struct weston_surface*>(wl_resource_get_user_data(surface_resource));
+    struct desktop_shell *shell =
+        static_cast<struct desktop_shell*>(wl_resource_get_user_data(resource));
 	struct input_panel_surface *ipsurf;
 
 	if (get_input_panel_surface(surface)) {
@@ -359,7 +362,8 @@ static const struct zwp_input_panel_v1_interface input_panel_implementation = {
 static void
 unbind_input_panel(struct wl_resource *resource)
 {
-	struct desktop_shell *shell = wl_resource_get_user_data(resource);
+    struct desktop_shell *shell =
+        static_cast<struct desktop_shell*>(wl_resource_get_user_data(resource));
 
 	shell->input_panel.binding = NULL;
 }
@@ -368,7 +372,7 @@ static void
 bind_input_panel(struct wl_client *client,
 	      void *data, uint32_t version, uint32_t id)
 {
-	struct desktop_shell *shell = data;
+    struct desktop_shell *shell = static_cast<struct desktop_shell*>(data);
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client,
