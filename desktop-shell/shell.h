@@ -188,6 +188,39 @@ public:
 private:
 };
 
+//================
+// Shell Output
+//================
+class ShellOutput
+{
+public:
+    class Fade
+    {
+    public:
+        Fade();
+        ~Fade();
+
+        struct weston_view* view();
+        void set_view(struct weston_view *view);
+
+        struct weston_view_animation* animation();
+        void set_animation(struct weston_view_animation* animation);
+
+        FadeType type() const;
+        void set_type(FadeType type);
+
+        struct wl_event_source *startup_timer;
+
+    private:
+        struct weston_view *_view;
+        struct weston_view_animation *_animation;
+        FadeType _type;
+    };
+
+public:
+
+};
+
 } // namespace hb
 
 
@@ -197,7 +230,7 @@ struct shell_output {
 	struct weston_output  *output;
 	struct exposay_output eoutput;
 	struct wl_listener    destroy_listener;
-	struct wl_list        link;
+    struct wl_list        link;
 
 	struct weston_surface *panel_surface;
 	struct wl_listener panel_surface_listener;
@@ -205,15 +238,11 @@ struct shell_output {
 	struct weston_surface *background_surface;
 	struct wl_listener background_surface_listener;
 
-	struct {
-		struct weston_view *view;
-		struct weston_view_animation *animation;
-        FadeType type;
-		struct wl_event_source *startup_timer;
-	} fade;
+    hb::ShellOutput::Fade fade;
 };
 
 struct weston_desktop;
+
 struct desktop_shell {
 	struct weston_compositor *compositor;
 	struct weston_desktop *desktop;

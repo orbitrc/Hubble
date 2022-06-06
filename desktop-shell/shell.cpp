@@ -1064,6 +1064,54 @@ void hb::Workspace::set_focus_animation(struct weston_view_animation *anim)
     this->_focus_animation = anim;
 }
 
+//=====================
+// Shell Output: Fade
+//=====================
+hb::ShellOutput::Fade::Fade()
+{
+    this->_animation = nullptr;
+    this->_type = FadeType::FadeIn;
+    this->_view = nullptr;
+
+    this->startup_timer = nullptr;
+}
+
+hb::ShellOutput::Fade::~Fade()
+{
+}
+
+struct weston_view* hb::ShellOutput::Fade::view()
+{
+    return this->_view;
+}
+
+void hb::ShellOutput::Fade::set_view(struct weston_view *view)
+{
+    this->_view = view;
+}
+
+FadeType hb::ShellOutput::Fade::type() const
+{
+    return this->_type;
+}
+
+void hb::ShellOutput::Fade::set_type(FadeType type)
+{
+    this->_type = type;
+}
+
+struct weston_view_animation* hb::ShellOutput::Fade::animation()
+{
+    return this->_animation;
+}
+
+void hb::ShellOutput::Fade::set_animation(
+        struct weston_view_animation *animation)
+{
+    this->_animation = animation;
+}
+
+
 
 hb::Workspace* get_workspace(struct desktop_shell *shell, unsigned int index)
 {
@@ -4126,11 +4174,11 @@ shell_fade_done_for_output(struct weston_view_animation *animation, void *data)
     struct shell_output *shell_output = static_cast<struct shell_output*>(data);
 	struct desktop_shell *shell = shell_output->shell;
 
-	shell_output->fade.animation = NULL;
-	switch (shell_output->fade.type) {
+    shell_output->fade.set_animation(nullptr);
+    switch (shell_output->fade.type()) {
     case FadeType::FadeIn:
-		weston_surface_destroy(shell_output->fade.view->surface);
-		shell_output->fade.view = NULL;
+        weston_surface_destroy(shell_output->fade.view()->surface);
+        shell_output->fade.set_view(nullptr);
 		break;
     case FadeType::FadeOut:
 		lock(shell);
@@ -4188,32 +4236,33 @@ static void shell_fade(struct desktop_shell *shell, FadeType type)
 
 	/* Create a separate fade surface for each output */
 	wl_list_for_each(shell_output, &shell->output_list, link) {
-		shell_output->fade.type = type;
+        shell_output->fade.set_type(type);
 
-		if (shell_output->fade.view == NULL) {
-			shell_output->fade.view = shell_fade_create_surface_for_output(shell, shell_output);
-			if (!shell_output->fade.view)
-				continue;
+        if (shell_output->fade.view() == NULL) {
+            shell_output->fade.set_view(shell_fade_create_surface_for_output(shell, shell_output));
+            if (!shell_output->fade.view()) {
+                continue;
+            }
 
-			shell_output->fade.view->alpha = 1.0 - tint;
-			weston_view_update_transform(shell_output->fade.view);
+            shell_output->fade.view()->alpha = 1.0 - tint;
+            weston_view_update_transform(shell_output->fade.view());
 		}
 
-		if (shell_output->fade.view->output == NULL) {
+        if (shell_output->fade.view()->output == NULL) {
 			/* If the black view gets a NULL output, we lost the
 			 * last output and we'll just cancel the fade.  This
 			 * happens when you close the last window under the
 			 * X11 or Wayland backends. */
 			shell->locked = false;
-			weston_surface_destroy(shell_output->fade.view->surface);
-			shell_output->fade.view = NULL;
-		} else if (shell_output->fade.animation) {
-			weston_fade_update(shell_output->fade.animation, tint);
-		} else {
-			shell_output->fade.animation =
-				weston_fade_run(shell_output->fade.view,
-						1.0 - tint, tint, 300.0,
-						shell_fade_done_for_output, shell_output);
+            weston_surface_destroy(shell_output->fade.view()->surface);
+            shell_output->fade.set_view(nullptr);
+        } else if (shell_output->fade.animation()) {
+            weston_fade_update(shell_output->fade.animation(), tint);
+        } else {
+            shell_output->fade.set_animation(
+                weston_fade_run(shell_output->fade.view(),
+                    1.0 - tint, tint, 300.0,
+                    shell_fade_done_for_output, shell_output));
 		}
 	}
 }
@@ -4231,8 +4280,8 @@ do_shell_fade_startup(void *data)
 			   "unexpected fade-in animation type %d\n",
 			   shell->startup_animation_type);
 		wl_list_for_each(shell_output, &shell->output_list, link) {
-			weston_surface_destroy(shell_output->fade.view->surface);
-			shell_output->fade.view = NULL;
+            weston_surface_destroy(shell_output->fade.view()->surface);
+            shell_output->fade.set_view(nullptr);
 		}
 	}
 }
@@ -4245,11 +4294,11 @@ shell_fade_startup(struct desktop_shell *shell)
 	bool has_fade = false;
 
 	wl_list_for_each(shell_output, &shell->output_list, link) {
-		if (!shell_output->fade.startup_timer)
-			continue;
+        if (!shell_output->fade.startup_timer)
+            continue;
 
-		wl_event_source_remove(shell_output->fade.startup_timer);
-		shell_output->fade.startup_timer = NULL;
+        wl_event_source_remove(shell_output->fade.startup_timer);
+        shell_output->fade.startup_timer = nullptr;
 		has_fade = true;
 	}
 
@@ -4283,23 +4332,23 @@ shell_fade_init(struct desktop_shell *shell)
 		return;
 
 	wl_list_for_each(shell_output, &shell->output_list, link) {
-		if (shell_output->fade.view != NULL) {
+        if (shell_output->fade.view() != nullptr) {
 			weston_log("%s: warning: fade surface already exists\n",
 				   __func__);
 			continue;
 		}
 
-		shell_output->fade.view = shell_fade_create_surface_for_output(shell, shell_output);
-		if (!shell_output->fade.view)
+        shell_output->fade.set_view(shell_fade_create_surface_for_output(shell, shell_output));
+        if (!shell_output->fade.view())
 			continue;
 
-		weston_view_update_transform(shell_output->fade.view);
-		weston_surface_damage(shell_output->fade.view->surface);
+        weston_view_update_transform(shell_output->fade.view());
+        weston_surface_damage(shell_output->fade.view()->surface);
 
 		loop = wl_display_get_event_loop(shell->compositor->wl_display);
 		shell_output->fade.startup_timer =
 			wl_event_loop_add_timer(loop, fade_startup_timeout, shell);
-		wl_event_source_timer_update(shell_output->fade.startup_timer, 15000);
+        wl_event_source_timer_update(shell_output->fade.startup_timer, 15000);
 	}
 }
 
@@ -4962,14 +5011,14 @@ shell_output_destroy(struct shell_output *shell_output)
 
 	shell_for_each_layer(shell, shell_output_changed_move_layer, NULL);
 
-	if (shell_output->fade.animation) {
-		weston_view_animation_destroy(shell_output->fade.animation);
-		shell_output->fade.animation = NULL;
+    if (shell_output->fade.animation()) {
+        weston_view_animation_destroy(shell_output->fade.animation());
+        shell_output->fade.set_animation(nullptr);
 	}
 
-	if (shell_output->fade.view) {
+    if (shell_output->fade.view()) {
 		/* destroys the view as well */
-		weston_surface_destroy(shell_output->fade.view->surface);
+        weston_surface_destroy(shell_output->fade.view()->surface);
 	}
 
 	if (shell_output->fade.startup_timer)
