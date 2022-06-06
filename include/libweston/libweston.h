@@ -68,6 +68,42 @@ struct weston_point2d_device_normalized {
 	double y;
 };
 
+#ifdef __cplusplus
+
+namespace hb {
+
+//=============
+// Geometry
+//=============
+
+class Geometry
+{
+public:
+    Geometry(int32_t x, int32_t y, int32_t width, int32_t height);
+
+    int32_t x() const;
+    void set_x(int32_t x);
+
+    int32_t y() const;
+    void set_y(int32_t y);
+
+    int32_t width() const;
+    void set_width(int32_t width);
+
+    int32_t height() const;
+    void set_height(int32_t height);
+
+private:
+    int32_t _x;
+    int32_t _y;
+    int32_t _width;
+    int32_t _height;
+};
+
+} // namespace hb
+
+#endif
+
 struct weston_surface;
 struct weston_buffer;
 struct shell_surface;
