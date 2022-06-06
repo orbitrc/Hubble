@@ -543,16 +543,14 @@ get_focus_surface(struct weston_surface *surface)
 		return NULL;
 }
 
-static bool
-is_focus_surface (struct weston_surface *es)
+static bool is_focus_surface(struct weston_surface *es)
 {
-	return (es->committed == focus_surface_committed);
+    return (es->committed == focus_surface_committed);
 }
 
-static bool
-is_focus_view (struct weston_view *view)
+static bool is_focus_view(struct weston_view *view)
 {
-	return is_focus_surface (view->surface);
+    return is_focus_surface(view->surface);
 }
 
 static struct focus_surface *
@@ -993,22 +991,24 @@ view_get_transform(struct weston_view *view)
 	return NULL;
 }
 
-static void
-view_translate(struct workspace *ws, struct weston_view *view, double d)
+static void view_translate(struct workspace *ws, struct weston_view *view,
+        double d)
 {
-	struct weston_transform *transform = view_get_transform(view);
+    struct weston_transform *transform = view_get_transform(view);
 
-	if (!transform)
-		return;
+    if (!transform) {
+        return;
+    }
 
-	if (wl_list_empty(&transform->link))
-		wl_list_insert(view->geometry.transformation_list.prev,
-			       &transform->link);
+    if (wl_list_empty(&transform->link)) {
+        wl_list_insert(view->geometry.transformation_list.prev,
+            &transform->link);
+    }
 
-	weston_matrix_init(&transform->matrix);
-	weston_matrix_translate(&transform->matrix,
-				0.0, d, 0.0);
-	weston_view_geometry_dirty(view);
+    weston_matrix_init(&transform->matrix);
+    weston_matrix_translate(&transform->matrix,
+        0.0, d, 0.0);
+    weston_view_geometry_dirty(view);
 }
 
 static void
@@ -1026,23 +1026,22 @@ workspace_translate_out(struct workspace *ws, double fraction)
 	}
 }
 
-static void
-workspace_translate_in(struct workspace *ws, double fraction)
+static void workspace_translate_in(struct workspace *ws, double fraction)
 {
-	struct weston_view *view;
-	unsigned int height;
-	double d;
+    struct weston_view *view;
+    unsigned int height;
+    double d;
 
-	wl_list_for_each(view, &ws->layer.view_list.link, layer_link.link) {
-		height = get_output_height(view->surface->output);
+    wl_list_for_each(view, &ws->layer.view_list.link, layer_link.link) {
+        height = get_output_height(view->surface->output);
 
-		if (fraction > 0)
-			d = -(height - height * fraction);
-		else
-			d = height + height * fraction;
+        if (fraction > 0)
+            d = -(height - height * fraction);
+        else
+            d = height + height * fraction;
 
-		view_translate(ws, view, d);
-	}
+        view_translate(ws, view, d);
+    }
 }
 
 static void
@@ -1160,43 +1159,43 @@ animate_workspace_change_frame(struct weston_animation *animation,
 		finish_workspace_change_animation(shell, from, to);
 }
 
-static void
-animate_workspace_change(struct desktop_shell *shell,
-			 unsigned int index,
-			 struct workspace *from,
-			 struct workspace *to)
+static void animate_workspace_change(struct desktop_shell *shell,
+        unsigned int index,
+        struct workspace *from,
+        struct workspace *to)
 {
-	struct weston_output *output;
+    struct weston_output *output;
 
-	int dir;
+    int dir;
 
-	if (index > shell->workspaces.current)
-		dir = -1;
-	else
-		dir = 1;
+    if (index > shell->workspaces.current) {
+        dir = -1;
+    } else {
+        dir = 1;
+    }
 
-	shell->workspaces.current = index;
+    shell->workspaces.current = index;
 
-	shell->workspaces.anim_dir = dir;
-	shell->workspaces.anim_from = from;
-	shell->workspaces.anim_to = to;
-	shell->workspaces.anim_current = 0.0;
-	shell->workspaces.anim_timestamp = (struct timespec) { 0 };
+    shell->workspaces.anim_dir = dir;
+    shell->workspaces.anim_from = from;
+    shell->workspaces.anim_to = to;
+    shell->workspaces.anim_current = 0.0;
+    shell->workspaces.anim_timestamp = (struct timespec) { 0 };
 
-	output = container_of(shell->compositor->output_list.next,
-			      struct weston_output, link);
-	wl_list_insert(&output->animation_list,
-		       &shell->workspaces.animation.link);
+    output = container_of(shell->compositor->output_list.next,
+        struct weston_output, link);
+    wl_list_insert(&output->animation_list,
+        &shell->workspaces.animation.link);
 
-	weston_layer_set_position(&to->layer, WESTON_LAYER_POSITION_NORMAL);
+    weston_layer_set_position(&to->layer, WESTON_LAYER_POSITION_NORMAL);
     weston_layer_set_position(&from->layer,
         static_cast<enum weston_layer_position>(WESTON_LAYER_POSITION_NORMAL - 1));
 
-	workspace_translate_in(to, 0);
+    workspace_translate_in(to, 0);
 
-	restore_focus_state(shell, to);
+    restore_focus_state(shell, to);
 
-	weston_compositor_schedule_repaint(shell->compositor);
+    weston_compositor_schedule_repaint(shell->compositor);
 }
 
 static void
@@ -4655,9 +4654,8 @@ force_kill_binding(struct weston_keyboard *keyboard,
 	kill(pid, SIGKILL);
 }
 
-static void
-workspace_up_binding(struct weston_keyboard *keyboard,
-		     const struct timespec *time, uint32_t key, void *data)
+static void workspace_up_binding(struct weston_keyboard *keyboard,
+        const struct timespec *time, uint32_t key, void *data)
 {
     struct desktop_shell *shell = static_cast<struct desktop_shell*>(data);
 	unsigned int new_index = shell->workspaces.current;
@@ -4670,9 +4668,8 @@ workspace_up_binding(struct weston_keyboard *keyboard,
 	change_workspace(shell, new_index);
 }
 
-static void
-workspace_down_binding(struct weston_keyboard *keyboard,
-		       const struct timespec *time, uint32_t key, void *data)
+static void workspace_down_binding(struct weston_keyboard *keyboard,
+        const struct timespec *time, uint32_t key, void *data)
 {
     struct desktop_shell *shell = static_cast<struct desktop_shell*>(data);
 	unsigned int new_index = shell->workspaces.current;
@@ -4685,9 +4682,8 @@ workspace_down_binding(struct weston_keyboard *keyboard,
 	change_workspace(shell, new_index);
 }
 
-static void
-workspace_f_binding(struct weston_keyboard *keyboard,
-		    const struct timespec *time, uint32_t key, void *data)
+static void workspace_f_binding(struct weston_keyboard *keyboard,
+        const struct timespec *time, uint32_t key, void *data)
 {
     struct desktop_shell *shell = static_cast<struct desktop_shell*>(data);
 	unsigned int new_index;
@@ -4701,10 +4697,9 @@ workspace_f_binding(struct weston_keyboard *keyboard,
 	change_workspace(shell, new_index);
 }
 
-static void
-workspace_move_surface_up_binding(struct weston_keyboard *keyboard,
-				  const struct timespec *time, uint32_t key,
-				  void *data)
+static void workspace_move_surface_up_binding(struct weston_keyboard *keyboard,
+        const struct timespec *time, uint32_t key,
+        void *data)
 {
     struct desktop_shell *shell = static_cast<struct desktop_shell*>(data);
 	unsigned int new_index = shell->workspaces.current;
@@ -4718,10 +4713,9 @@ workspace_move_surface_up_binding(struct weston_keyboard *keyboard,
 	take_surface_to_workspace_by_seat(shell, keyboard->seat, new_index);
 }
 
-static void
-workspace_move_surface_down_binding(struct weston_keyboard *keyboard,
-				    const struct timespec *time, uint32_t key,
-				    void *data)
+static void workspace_move_surface_down_binding(struct weston_keyboard *keyboard,
+        const struct timespec *time, uint32_t key,
+        void *data)
 {
     struct desktop_shell *shell = static_cast<struct desktop_shell*>(data);
 	unsigned int new_index = shell->workspaces.current;
