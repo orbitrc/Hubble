@@ -51,10 +51,14 @@
 #define DEFAULT_NUM_WORKSPACES 4
 #define DEFAULT_WORKSPACE_CHANGE_ANIMATION_LENGTH 200
 
+namespace hb {
+class Workspace;
+}
+
 struct focus_state {
 	struct desktop_shell *shell;
 	struct weston_seat *seat;
-	struct workspace *ws;
+    hb::Workspace *ws;
 	struct weston_surface *keyboard_focus;
 	struct wl_list link;
 	struct wl_listener seat_destroy_listener;
@@ -532,10 +536,15 @@ focus_surface_get_label(struct weston_surface *surface, char *buf, size_t len)
 static void
 focus_surface_committed(struct weston_surface *es, int32_t sx, int32_t sy)
 {
+    (void)es;
+    (void)sx;
+    (void)sy;
 }
 
 static hb::FocusSurface* get_focus_surface(struct weston_surface *surface)
 {
+    fprintf(stderr, " [DEBUG] BEGIN get_focus_surface()\n");
+
     if (surface->committed == focus_surface_committed)
         return static_cast<hb::FocusSurface*>(surface->committed_private);
     else
@@ -597,6 +606,7 @@ hb::FocusSurface::FocusSurface(struct weston_compositor *weston_compositor,
     // !!!!
     struct weston_transform transform = this->workspace_transform();
     wl_list_init(&transform.link);
+    this->_workspace_transform = transform;
 }
 
 hb::FocusSurface::~FocusSurface()
@@ -638,9 +648,10 @@ struct weston_transform* hb::FocusSurface::workspace_transform_ptr()
 static void
 focus_animation_done(struct weston_view_animation *animation, void *data)
 {
-    struct workspace *ws = static_cast<struct workspace*>(data);
+    (void)animation;
+    auto workspace = static_cast<hb::Workspace*>(data);
 
-	ws->focus_animation = NULL;
+    workspace->set_focus_animation(nullptr);
 }
 
 static void
@@ -654,6 +665,7 @@ focus_state_destroy(struct focus_state *state)
 static void
 focus_state_seat_destroy(struct wl_listener *listener, void *data)
 {
+    (void)data;
 	struct focus_state *state = container_of(listener,
 						 struct focus_state,
 						 seat_destroy_listener);
@@ -665,6 +677,7 @@ focus_state_seat_destroy(struct wl_listener *listener, void *data)
 static void
 focus_state_surface_destroy(struct wl_listener *listener, void *data)
 {
+    (void)data;
 	struct focus_state *state = container_of(listener,
 						 struct focus_state,
 						 surface_destroy_listener);
@@ -676,7 +689,7 @@ focus_state_surface_destroy(struct wl_listener *listener, void *data)
 
 	next = NULL;
 	wl_list_for_each(view,
-			 &state->ws->layer.view_list.link, layer_link.link) {
+             &state->ws->layer()->view_list.link, layer_link.link) {
 		if (view->surface == main_surface)
 			continue;
 		if (is_focus_view(view))
@@ -701,36 +714,40 @@ focus_state_surface_destroy(struct wl_listener *listener, void *data)
 		activate(state->shell, next, state->seat,
 			 WESTON_ACTIVATE_FLAG_CONFIGURE);
 	} else {
-		if (state->shell->focus_animation_type == ANIMATION_DIM_LAYER) {
-			if (state->ws->focus_animation)
-				weston_view_animation_destroy(state->ws->focus_animation);
+        if (state->shell->focus_animation_type == ANIMATION_DIM_LAYER) {
+            if (state->ws->focus_animation())
+                weston_view_animation_destroy(state->ws->focus_animation());
 
-			state->ws->focus_animation = weston_fade_run(
-                state->ws->fsurf_front->view(),
-                state->ws->fsurf_front->view()->alpha, 0.0, 300,
-				focus_animation_done, state->ws);
-		}
+            auto anim = weston_fade_run(
+                state->ws->focus_surface_front()->view(),
+                state->ws->focus_surface_front()->view()->alpha, 0.0, 300,
+                focus_animation_done, state->ws);
+            state->ws->set_focus_animation(anim);
+        }
 
 		wl_list_remove(&state->link);
 		focus_state_destroy(state);
 	}
 }
 
-static struct focus_state *
-focus_state_create(struct desktop_shell *shell, struct weston_seat *seat,
-		   struct workspace *ws)
+static struct focus_state* focus_state_create(struct desktop_shell *shell,
+        struct weston_seat *seat,
+        hb::Workspace *ws)
 {
-	struct focus_state *state;
+    fprintf(stderr, " [DEBUG] focus_state_create()\n");
+    struct focus_state *state;
 
     state = (struct focus_state*)malloc(sizeof *state);
-	if (state == NULL)
-		return NULL;
+    if (state == NULL) {
+        return NULL;
+    }
 
 	state->shell = shell;
 	state->keyboard_focus = NULL;
 	state->ws = ws;
 	state->seat = seat;
-	wl_list_insert(&ws->focus_list, &state->link);
+//	wl_list_insert(&ws->focus_list, &state->link);
+    ws->focus_list().push(state);
 
 	state->seat_destroy_listener.notify = focus_state_seat_destroy;
 	state->surface_destroy_listener.notify = focus_state_surface_destroy;
@@ -741,39 +758,53 @@ focus_state_create(struct desktop_shell *shell, struct weston_seat *seat,
 	return state;
 }
 
-static struct focus_state *
-ensure_focus_state(struct desktop_shell *shell, struct weston_seat *seat)
+static struct focus_state* ensure_focus_state(struct desktop_shell *shell, struct weston_seat *seat)
 {
-	struct workspace *ws = get_current_workspace(shell);
-	struct focus_state *state;
+    fprintf(stderr, " [DEBUG] BEGIN ensure_focus_state()\n");
+    hb::Workspace *ws = get_current_workspace(shell);
+    struct focus_state *state = nullptr;
 
-	wl_list_for_each(state, &ws->focus_list, link)
-		if (state->seat == seat)
-			break;
+//	wl_list_for_each(state, &ws->focus_list, link)
+//		if (state->seat == seat)
+//			break;
+    for (auto& focus: ws->focus_list()) {
+        if (focus->seat == seat) {
+            state = focus;
+            break;
+        }
+    }
 
-	if (&state->link == &ws->focus_list)
-		state = focus_state_create(shell, seat, ws);
+    if (state == nullptr) {
+        state = focus_state_create(shell, seat, ws);
+    }
 
-	return state;
+//	if (&state->link == &ws->focus_list)
+//		state = focus_state_create(shell, seat, ws);
+    fprintf(stderr, " [DEBUG] END ensure_focus_state() state: %p\n", state);
+
+    return state;
+}
+
+static void focus_state_set_focus(struct focus_state *state,
+        struct weston_surface *surface)
+{
+    fprintf(stderr, " [DEBUG] BEGIN focus_state_set_focus(). state: %p\n", state);
+    if (state->keyboard_focus) {
+        fprintf(stderr, " [DEUBG]     first if %p\n", &state->surface_destroy_listener);
+        wl_list_remove(&state->surface_destroy_listener.link);
+        fprintf(stderr, " [DEBUG]     wl_list_init\n");
+        wl_list_init(&state->surface_destroy_listener.link);
+    }
+
+    state->keyboard_focus = surface;
+    if (surface) {
+        wl_signal_add(&surface->destroy_signal,
+            &state->surface_destroy_listener);
+    }
 }
 
 static void
-focus_state_set_focus(struct focus_state *state,
-		      struct weston_surface *surface)
-{
-	if (state->keyboard_focus) {
-		wl_list_remove(&state->surface_destroy_listener.link);
-		wl_list_init(&state->surface_destroy_listener.link);
-	}
-
-	state->keyboard_focus = surface;
-	if (surface)
-		wl_signal_add(&surface->destroy_signal,
-			      &state->surface_destroy_listener);
-}
-
-static void
-restore_focus_state(struct desktop_shell *shell, struct workspace *ws)
+restore_focus_state(struct desktop_shell *shell, hb::Workspace *ws)
 {
 	struct focus_state *state, *next;
 	struct weston_surface *surface;
@@ -786,21 +817,39 @@ restore_focus_state(struct desktop_shell *shell, struct workspace *ws)
 	wl_list_insert_list(&pending_seat_list, &shell->compositor->seat_list);
 	wl_list_init(&shell->compositor->seat_list);
 
-	wl_list_for_each_safe(state, next, &ws->focus_list, link) {
-		struct weston_keyboard *keyboard =
-			weston_seat_get_keyboard(state->seat);
+    /*
+    wl_list_for_each_safe(state, next, &ws->focus_list, link) {
+        struct weston_keyboard *keyboard =
+            weston_seat_get_keyboard(state->seat);
 
-		wl_list_remove(&state->seat->link);
-		wl_list_insert(&shell->compositor->seat_list,
-			       &state->seat->link);
+        wl_list_remove(&state->seat->link);
+        wl_list_insert(&shell->compositor->seat_list,
+                   &state->seat->link);
 
-		if (!keyboard)
-			continue;
+        if (!keyboard)
+            continue;
 
-		surface = state->keyboard_focus;
+        surface = state->keyboard_focus;
 
-		weston_keyboard_set_focus(keyboard, surface);
-	}
+        weston_keyboard_set_focus(keyboard, surface);
+    }
+    */
+    for (auto& state: ws->focus_list()) {
+        struct weston_keyboard *keyboard =
+            weston_seat_get_keyboard(state->seat);
+
+        wl_list_remove(&state->seat->link);
+        wl_list_insert(&shell->compositor->seat_list,
+            &state->seat->link);
+
+        if (!keyboard) {
+            continue;
+        }
+
+        surface = state->keyboard_focus;
+
+        weston_keyboard_set_focus(keyboard, surface);
+    }
 
 	/* For any remaining seats that we don't have a focus state
 	 * for we'll reset the keyboard focus to NULL */
@@ -817,187 +866,252 @@ restore_focus_state(struct desktop_shell *shell, struct workspace *ws)
 	}
 }
 
-static void
-replace_focus_state(struct desktop_shell *shell, struct workspace *ws,
-		    struct weston_seat *seat)
+static void replace_focus_state(struct desktop_shell *shell, hb::Workspace *ws,
+        struct weston_seat *seat)
 {
-	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
-	struct focus_state *state;
+    struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
 
+    /*
 	wl_list_for_each(state, &ws->focus_list, link) {
 		if (state->seat == seat) {
 			focus_state_set_focus(state, keyboard->focus);
 			return;
 		}
 	}
+    */
+    for (auto& state: ws->focus_list()) {
+        if (state->seat == seat) {
+            focus_state_set_focus(state, keyboard->focus);
+            return;
+        }
+    }
 }
 
-static void
-drop_focus_state(struct desktop_shell *shell, struct workspace *ws,
-		 struct weston_surface *surface)
+static void drop_focus_state(struct desktop_shell *shell, hb::Workspace *ws,
+        struct weston_surface *surface)
 {
-	struct focus_state *state;
-
+    /*
 	wl_list_for_each(state, &ws->focus_list, link)
 		if (state->keyboard_focus == surface)
 			focus_state_set_focus(state, NULL);
+    */
+    for (auto& state: ws->focus_list()) {
+        if (state->keyboard_focus == surface) {
+            focus_state_set_focus(state, NULL);
+        }
+    }
 }
 
-static void
-animate_focus_change(struct desktop_shell *shell, struct workspace *ws,
-		     struct weston_view *from, struct weston_view *to)
+static void animate_focus_change(struct desktop_shell *shell, hb::Workspace *ws,
+        struct weston_view *from, struct weston_view *to)
 {
 	struct weston_output *output;
 	bool focus_surface_created = false;
 
 	/* FIXME: Only support dim animation using two layers */
-	if (from == to || shell->focus_animation_type != ANIMATION_DIM_LAYER)
-		return;
+    if (from == to || shell->focus_animation_type != ANIMATION_DIM_LAYER) {
+        return;
+    }
 
-	output = get_default_output(shell->compositor);
-	if (ws->fsurf_front == NULL && (from || to)) {
-        ws->fsurf_front = new hb::FocusSurface(shell->compositor, output);
-		if (ws->fsurf_front == NULL)
-			return;
-        ws->fsurf_front->view()->alpha = 0.0;
-
-        ws->fsurf_back = new hb::FocusSurface(shell->compositor, output);
-        if (ws->fsurf_back == NULL) {
-            // focus_surface_destroy(ws->fsurf_front);
-            delete ws->fsurf_front;
+    output = get_default_output(shell->compositor);
+    if (ws->focus_surface_front() == nullptr && (from || to)) {
+        ws->set_focus_surface_front(new hb::FocusSurface(shell->compositor, output));
+        if (ws->focus_surface_front() == nullptr) {
             return;
         }
-        ws->fsurf_back->view()->alpha = 0.0;
+        ws->focus_surface_front()->view()->alpha = 0.0;
 
-		focus_surface_created = true;
-	} else {
-        weston_layer_entry_remove(&ws->fsurf_front->view()->layer_link);
-        weston_layer_entry_remove(&ws->fsurf_back->view()->layer_link);
-	}
+        ws->set_focus_surface_back(new hb::FocusSurface(shell->compositor, output));
+        if (ws->focus_surface_back() == NULL) {
+            // focus_surface_destroy(ws->fsurf_front);
+            delete ws->focus_surface_front();
+            return;
+        }
+        ws->focus_surface_back()->view()->alpha = 0.0;
 
-	if (ws->focus_animation) {
-		weston_view_animation_destroy(ws->focus_animation);
-		ws->focus_animation = NULL;
-	}
+        focus_surface_created = true;
+    } else {
+        weston_layer_entry_remove(&ws->focus_surface_front()->view()->layer_link);
+        weston_layer_entry_remove(&ws->focus_surface_back()->view()->layer_link);
+    }
+
+    if (ws->focus_animation()) {
+        weston_view_animation_destroy(ws->focus_animation());
+//        ws->focus_animation = NULL;
+    }
 
     if (to) {
         weston_layer_entry_insert(&to->layer_link,
-            &ws->fsurf_front->view()->layer_link);
+            &ws->focus_surface_front()->view()->layer_link);
     } else if (from) {
-        weston_layer_entry_insert(&ws->layer.view_list,
-            &ws->fsurf_front->view()->layer_link);
+        weston_layer_entry_insert(&ws->layer()->view_list,
+            &ws->focus_surface_front()->view()->layer_link);
     }
 
     if (focus_surface_created) {
-        ws->focus_animation = weston_fade_run(
-            ws->fsurf_front->view(),
-            ws->fsurf_front->view()->alpha, 0.4, 300,
+        auto anim = weston_fade_run(
+            ws->focus_surface_front()->view(),
+            ws->focus_surface_front()->view()->alpha, 0.4, 300,
             focus_animation_done, ws);
+        ws->set_focus_animation(anim);
     } else if (from) {
         weston_layer_entry_insert(&from->layer_link,
-            &ws->fsurf_back->view()->layer_link);
-        ws->focus_animation = weston_stable_fade_run(
-            ws->fsurf_front->view(), 0.0,
-            ws->fsurf_back->view(), 0.4,
+            &ws->focus_surface_back()->view()->layer_link);
+        auto anim = weston_stable_fade_run(
+            ws->focus_surface_front()->view(), 0.0,
+            ws->focus_surface_back()->view(), 0.4,
             focus_animation_done, ws);
+        ws->set_focus_animation(anim);
     } else if (to) {
-        weston_layer_entry_insert(&ws->layer.view_list,
-            &ws->fsurf_back->view()->layer_link);
-        ws->focus_animation = weston_stable_fade_run(
-            ws->fsurf_front->view(), 0.0,
-            ws->fsurf_back->view(), 0.4,
+        weston_layer_entry_insert(&ws->layer()->view_list,
+            &ws->focus_surface_back()->view()->layer_link);
+        auto anim = weston_stable_fade_run(
+            ws->focus_surface_front()->view(), 0.0,
+            ws->focus_surface_back()->view(), 0.4,
             focus_animation_done, ws);
+        ws->set_focus_animation(anim);
     }
 }
 
-static void
-desktop_shell_destroy_views_on_layer(struct weston_layer *layer);
 
-static void workspace_destroy(struct workspace *ws)
+
+static void seat_destroyed(struct wl_listener *listener, void *data)
 {
-	struct focus_state *state, *next;
+    fprintf(stderr, " [DEBUG] BEGIN seat_destroyed()\n");
 
-	wl_list_for_each_safe(state, next, &ws->focus_list, link)
-		focus_state_destroy(state);
-
-    if (ws->fsurf_front) {
-//		focus_surface_destroy(ws->fsurf_front);
-        delete ws->fsurf_front;
-    }
-    if (ws->fsurf_back) {
-        //focus_surface_destroy(ws->fsurf_back);
-        delete ws->fsurf_back;
-    }
-
-    desktop_shell_destroy_views_on_layer(&ws->layer);
-    free(ws);
-}
-
-static void
-seat_destroyed(struct wl_listener *listener, void *data)
-{
     struct weston_seat *seat = static_cast<struct weston_seat*>(data);
-	struct focus_state *state, *next;
-	struct workspace *ws = container_of(listener,
-					    struct workspace,
-					    seat_destroyed_listener);
+    struct focus_state *state, *next;
+    hb::Workspace *ws = container_of(listener,
+                        hb::Workspace,
+                        seat_destroyed_listener);
 
+    for (auto& state: ws->focus_list()) {
+        if (state->seat == seat) {
+            wl_list_remove(&state->link);
+        }
+    }
+
+    /*
 	wl_list_for_each_safe(state, next, &ws->focus_list, link)
 		if (state->seat == seat)
 			wl_list_remove(&state->link);
+    */
 }
 
-static struct workspace* workspace_create(struct desktop_shell *shell)
+//==============
+// Workspace
+//==============
+
+hb::Workspace::Workspace(struct desktop_shell *shell)
 {
-    struct workspace *ws = (struct workspace*)malloc(sizeof *ws);
-    if (ws == NULL) {
-        return NULL;
+    weston_layer_init(&this->_layer, shell->compositor);
+
+    wl_list_init(&this->seat_destroyed_listener.link);
+    this->seat_destroyed_listener.notify = seat_destroyed;
+
+    this->_fsurf_front = nullptr;
+    this->_fsurf_back = nullptr;
+    this->_focus_animation = nullptr;
+
+    fprintf(stderr, " [DEBUG] Workspace() - done.\n");
+}
+
+static void desktop_shell_destroy_views_on_layer(struct weston_layer*);
+
+hb::Workspace::~Workspace()
+{
+    struct focus_state *state, *next;
+
+    for (auto& val: this->_focus_list) {
+        focus_state_destroy(val);
     }
 
-    weston_layer_init(&ws->layer, shell->compositor);
+    if (this->_fsurf_front) {
+//		focus_surface_destroy(ws->fsurf_front);
+        delete this->_fsurf_front;
+    }
+    if (this->_fsurf_back) {
+        //focus_surface_destroy(ws->fsurf_back);
+        delete this->_fsurf_back;
+    }
 
-	wl_list_init(&ws->focus_list);
-	wl_list_init(&ws->seat_destroyed_listener.link);
-	ws->seat_destroyed_listener.notify = seat_destroyed;
-	ws->fsurf_front = NULL;
-	ws->fsurf_back = NULL;
-	ws->focus_animation = NULL;
-    fprintf(stderr, " [DEBUG] workspace created: %p.\n", ws);
-
-    return ws;
+    desktop_shell_destroy_views_on_layer(&this->_layer);
 }
 
-static int
-workspace_is_empty(struct workspace *ws)
+bool hb::Workspace::is_empty() const
 {
-	return wl_list_empty(&ws->layer.view_list.link);
+    if (wl_list_empty(&this->_layer.view_list.link) == 1) {
+        return true;
+    }
+
+    return false;
 }
 
-static struct workspace* get_workspace(struct desktop_shell *shell, unsigned int index)
+struct weston_layer* hb::Workspace::layer()
 {
+    return &(this->_layer);
+}
+
+pr::Vector<struct focus_state*>& hb::Workspace::focus_list()
+{
+    return this->_focus_list;
+}
+
+hb::FocusSurface* hb::Workspace::focus_surface_front()
+{
+    return this->_fsurf_front;
+}
+
+void hb::Workspace::set_focus_surface_front(hb::FocusSurface *surface)
+{
+    this->_fsurf_front = surface;
+}
+
+hb::FocusSurface* hb::Workspace::focus_surface_back()
+{
+    return this->_fsurf_back;
+}
+
+void hb::Workspace::set_focus_surface_back(hb::FocusSurface *surface)
+{
+    this->_fsurf_back = surface;
+}
+
+struct weston_view_animation* hb::Workspace::focus_animation()
+{
+    return this->_focus_animation;
+}
+
+void hb::Workspace::set_focus_animation(struct weston_view_animation *anim)
+{
+    this->_focus_animation = anim;
+}
+
+
+hb::Workspace* get_workspace(struct desktop_shell *shell, unsigned int index)
+{
+    fprintf(stderr, " [DEBUG] BEGIN get_workspace()\n");
     // struct workspace **pws = static_cast<struct workspace**>(shell->workspaces.array.data);
-    struct workspace **pws = &shell->workspaces.array[0];
-    assert(index < shell->workspaces.num);
-    pws += index;
+    hb::Workspace *pws = shell->workspaces.array[index];
+    fprintf(stderr, " [DEBUG] END get_workspace()\n");
 
-    return *pws;
+    return pws;
 }
 
-struct workspace *
-get_current_workspace(struct desktop_shell *shell)
+hb::Workspace* get_current_workspace(struct desktop_shell *shell)
 {
-	return get_workspace(shell, shell->workspaces.current);
+    fprintf(stderr, " [DEBUG] BEGIN get_current_workspace()\n");
+    return get_workspace(shell, shell->workspaces.current);
 }
 
-static void
-activate_workspace(struct desktop_shell *shell, unsigned int index)
+static void activate_workspace(struct desktop_shell *shell, unsigned int index)
 {
-	struct workspace *ws;
+    fprintf(stderr, " [DEBUG] BEGIN activate_workspace()\n");
+    hb::Workspace *ws = get_workspace(shell, index);
+    weston_layer_set_position(ws->layer(), WESTON_LAYER_POSITION_NORMAL);
 
-	ws = get_workspace(shell, index);
-	weston_layer_set_position(&ws->layer, WESTON_LAYER_POSITION_NORMAL);
-
-	shell->workspaces.current = index;
+    shell->workspaces.current = index;
+    fprintf(stderr, " [DEBUG] END activate_workspace()\n");
 }
 
 static unsigned int
@@ -1023,9 +1137,10 @@ static struct weston_transform* view_get_transform(struct weston_view *view)
 	return NULL;
 }
 
-static void view_translate(struct workspace *ws, struct weston_view *view,
+static void view_translate(hb::Workspace *ws, struct weston_view *view,
         double d)
 {
+    (void)ws;
     struct weston_transform *transform = view_get_transform(view);
 
     if (!transform) {
@@ -1044,13 +1159,13 @@ static void view_translate(struct workspace *ws, struct weston_view *view,
 }
 
 static void
-workspace_translate_out(struct workspace *ws, double fraction)
+workspace_translate_out(hb::Workspace *ws, double fraction)
 {
 	struct weston_view *view;
 	unsigned int height;
 	double d;
 
-	wl_list_for_each(view, &ws->layer.view_list.link, layer_link.link) {
+    wl_list_for_each(view, &(ws->layer()->view_list.link), layer_link.link) {
 		height = get_output_height(view->surface->output);
 		d = height * fraction;
 
@@ -1058,13 +1173,13 @@ workspace_translate_out(struct workspace *ws, double fraction)
 	}
 }
 
-static void workspace_translate_in(struct workspace *ws, double fraction)
+static void workspace_translate_in(hb::Workspace *ws, double fraction)
 {
     struct weston_view *view;
     unsigned int height;
     double d;
 
-    wl_list_for_each(view, &ws->layer.view_list.link, layer_link.link) {
+    wl_list_for_each(view, &(ws->layer()->view_list.link), layer_link.link) {
         height = get_output_height(view->surface->output);
 
         if (fraction > 0)
@@ -1076,11 +1191,10 @@ static void workspace_translate_in(struct workspace *ws, double fraction)
     }
 }
 
-static void
-reverse_workspace_change_animation(struct desktop_shell *shell,
-				   unsigned int index,
-				   struct workspace *from,
-				   struct workspace *to)
+static void reverse_workspace_change_animation(struct desktop_shell *shell,
+        unsigned int index,
+        hb::Workspace *from,
+        hb::Workspace *to)
 {
 	shell->workspaces.current = index;
 
@@ -1089,20 +1203,19 @@ reverse_workspace_change_animation(struct desktop_shell *shell,
 	shell->workspaces.anim_dir = -1 * shell->workspaces.anim_dir;
 	shell->workspaces.anim_timestamp = (struct timespec) { 0 };
 
-	weston_layer_set_position(&to->layer, WESTON_LAYER_POSITION_NORMAL);
-    weston_layer_set_position(&from->layer,
+    weston_layer_set_position(to->layer(), WESTON_LAYER_POSITION_NORMAL);
+    weston_layer_set_position(from->layer(),
         static_cast<enum weston_layer_position>(WESTON_LAYER_POSITION_NORMAL - 1));
 
 	weston_compositor_schedule_repaint(shell->compositor);
 }
 
-static void
-workspace_deactivate_transforms(struct workspace *ws)
+static void workspace_deactivate_transforms(hb::Workspace *ws)
 {
 	struct weston_view *view;
 	struct weston_transform *transform;
 
-	wl_list_for_each(view, &ws->layer.view_list.link, layer_link.link) {
+    wl_list_for_each(view, &ws->layer()->view_list.link, layer_link.link) {
 		transform = view_get_transform(view);
 		if (!transform)
 			continue;
@@ -1115,10 +1228,9 @@ workspace_deactivate_transforms(struct workspace *ws)
 	}
 }
 
-static void
-finish_workspace_change_animation(struct desktop_shell *shell,
-				  struct workspace *from,
-				  struct workspace *to)
+static void finish_workspace_change_animation(struct desktop_shell *shell,
+        hb::Workspace *from,
+        hb::Workspace *to)
 {
 	struct weston_view *view;
 
@@ -1128,7 +1240,7 @@ finish_workspace_change_animation(struct desktop_shell *shell,
 	 * visible after the workspace animation ends but before its layer
 	 * is hidden. In that case, we need to damage below those views so
 	 * that the screen is properly repainted. */
-	wl_list_for_each(view, &from->layer.view_list.link, layer_link.link)
+    wl_list_for_each(view, &from->layer()->view_list.link, layer_link.link)
 		weston_view_damage_below(view);
 
 	wl_list_remove(&shell->workspaces.animation.link);
@@ -1136,23 +1248,24 @@ finish_workspace_change_animation(struct desktop_shell *shell,
 	workspace_deactivate_transforms(to);
 	shell->workspaces.anim_to = NULL;
 
-	weston_layer_unset_position(&shell->workspaces.anim_from->layer);
+    weston_layer_unset_position(shell->workspaces.anim_from->layer());
 }
 
-static void
-animate_workspace_change_frame(struct weston_animation *animation,
-			       struct weston_output *output,
-			       const struct timespec *time)
+static void animate_workspace_change_frame(struct weston_animation *animation,
+        struct weston_output *output,
+        const struct timespec *time)
 {
-	struct desktop_shell *shell =
-		container_of(animation, struct desktop_shell,
-			     workspaces.animation);
-	struct workspace *from = shell->workspaces.anim_from;
-	struct workspace *to = shell->workspaces.anim_to;
+    (void)output;
+    fprintf(stderr, " [DEBUG] BEGIN animate_workspace_change_frame()\n");
+
+    struct desktop_shell *shell = container_of(animation,
+        struct desktop_shell, workspaces.animation);
+    hb::Workspace *from = shell->workspaces.anim_from;
+    hb::Workspace *to = shell->workspaces.anim_to;
 	int64_t t;
 	double x, y;
 
-	if (workspace_is_empty(from) && workspace_is_empty(to)) {
+    if (from->is_empty() && to->is_empty()) {
 		finish_workspace_change_animation(shell, from, to);
 		return;
 	}
@@ -1193,8 +1306,8 @@ animate_workspace_change_frame(struct weston_animation *animation,
 
 static void animate_workspace_change(struct desktop_shell *shell,
         unsigned int index,
-        struct workspace *from,
-        struct workspace *to)
+        hb::Workspace *from,
+        hb::Workspace *to)
 {
     struct weston_output *output;
 
@@ -1219,8 +1332,8 @@ static void animate_workspace_change(struct desktop_shell *shell,
     wl_list_insert(&output->animation_list,
         &shell->workspaces.animation.link);
 
-    weston_layer_set_position(&to->layer, WESTON_LAYER_POSITION_NORMAL);
-    weston_layer_set_position(&from->layer,
+    weston_layer_set_position(to->layer(), WESTON_LAYER_POSITION_NORMAL);
+    weston_layer_set_position(from->layer(),
         static_cast<enum weston_layer_position>(WESTON_LAYER_POSITION_NORMAL - 1));
 
     workspace_translate_in(to, 0);
@@ -1230,20 +1343,19 @@ static void animate_workspace_change(struct desktop_shell *shell,
     weston_compositor_schedule_repaint(shell->compositor);
 }
 
-static void
-update_workspace(struct desktop_shell *shell, unsigned int index,
-		 struct workspace *from, struct workspace *to)
+static void update_workspace(struct desktop_shell *shell, unsigned int index,
+        hb::Workspace *from, hb::Workspace *to)
 {
-	shell->workspaces.current = index;
-	weston_layer_set_position(&to->layer, WESTON_LAYER_POSITION_NORMAL);
-	weston_layer_unset_position(&from->layer);
+    shell->workspaces.current = index;
+    weston_layer_set_position(to->layer(), WESTON_LAYER_POSITION_NORMAL);
+    weston_layer_unset_position(from->layer());
 }
 
-static void
-change_workspace(struct desktop_shell *shell, unsigned int index)
+static void change_workspace(struct desktop_shell *shell, unsigned int index)
 {
-	struct workspace *from;
-	struct workspace *to;
+    fprintf(stderr, " [DEBUG] BEGIN change_workspace()\n");
+    hb::Workspace *from;
+    hb::Workspace *to;
 	struct focus_state *state;
 
 	if (index == shell->workspaces.current)
@@ -1256,12 +1368,12 @@ change_workspace(struct desktop_shell *shell, unsigned int index)
 	from = get_current_workspace(shell);
 	to = get_workspace(shell, index);
 
-	if (shell->workspaces.anim_from == to &&
-	    shell->workspaces.anim_to == from) {
-		restore_focus_state(shell, to);
-		reverse_workspace_change_animation(shell, index, from, to);
-		return;
-	}
+    if (shell->workspaces.anim_from == to &&
+            shell->workspaces.anim_to == from) {
+        restore_focus_state(shell, to);
+        reverse_workspace_change_animation(shell, index, from, to);
+        return;
+    }
 
 	if (shell->workspaces.anim_to != NULL)
 		finish_workspace_change_animation(shell,
@@ -1271,27 +1383,43 @@ change_workspace(struct desktop_shell *shell, unsigned int index)
 	restore_focus_state(shell, to);
 
 	if (shell->focus_animation_type != ANIMATION_NONE) {
+        /*
 		wl_list_for_each(state, &from->focus_list, link)
 			if (state->keyboard_focus)
 				animate_focus_change(shell, from,
-						     get_default_view(state->keyboard_focus), NULL);
+                             get_default_view(state->keyboard_focus), NULL);
+        */
+        for (auto& state: from->focus_list()) {
+            if (state->keyboard_focus) {
+                animate_focus_change(shell, from,
+                    get_default_view(state->keyboard_focus), NULL);
+            }
+        }
 
+        /*
 		wl_list_for_each(state, &to->focus_list, link)
 			if (state->keyboard_focus)
 				animate_focus_change(shell, to,
 						     NULL, get_default_view(state->keyboard_focus));
+        */
+        for (auto& state: from->focus_list()) {
+            if (state->keyboard_focus) {
+                animate_focus_change(shell, to,
+                    NULL, get_default_view(state->keyboard_focus));
+            }
+        }
 	}
 
-	if (workspace_is_empty(to) && workspace_is_empty(from))
-		update_workspace(shell, index, from, to);
-	else
-		animate_workspace_change(shell, index, from, to);
+    if (to->is_empty() && from->is_empty()) {
+        update_workspace(shell, index, from, to);
+    } else {
+        animate_workspace_change(shell, index, from, to);
+    }
 }
 
-static bool
-workspace_has_only(struct workspace *ws, struct weston_surface *surface)
+static bool workspace_has_only(hb::Workspace *ws, struct weston_surface *surface)
 {
-	struct wl_list *list = &ws->layer.view_list.link;
+    struct wl_list *list = &ws->layer()->view_list.link;
 	struct wl_list *e;
 
 	if (wl_list_empty(list))
@@ -1325,17 +1453,17 @@ surface_keyboard_focus_lost(struct weston_surface *surface)
 	}
 }
 
-static void
-take_surface_to_workspace_by_seat(struct desktop_shell *shell,
-				  struct weston_seat *seat,
-				  unsigned int index)
+static void take_surface_to_workspace_by_seat(struct desktop_shell *shell,
+        struct weston_seat *seat,
+        unsigned int index)
 {
+    fprintf(stderr, " [DEBUG] BEGIN take_surface_to_workspace_by_seat()\n");
 	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
 	struct weston_surface *surface;
 	struct weston_view *view;
 	struct shell_surface *shsurf;
-	struct workspace *from;
-	struct workspace *to;
+    hb::Workspace *from;
+    hb::Workspace *to;
 	struct focus_state *state;
 
 	surface = weston_surface_get_main_surface(keyboard->focus);
@@ -1349,7 +1477,7 @@ take_surface_to_workspace_by_seat(struct desktop_shell *shell,
 	to = get_workspace(shell, index);
 
 	weston_layer_entry_remove(&view->layer_link);
-	weston_layer_entry_insert(&to->layer.view_list, &view->layer_link);
+    weston_layer_entry_insert(&to->layer()->view_list, &view->layer_link);
 
 	shsurf = get_shell_surface(surface);
 	if (shsurf != NULL)
@@ -1370,10 +1498,10 @@ take_surface_to_workspace_by_seat(struct desktop_shell *shell,
 						  shell->workspaces.anim_from,
 						  shell->workspaces.anim_to);
 
-	if (workspace_is_empty(from) &&
-	    workspace_has_only(to, surface))
-		update_workspace(shell, index, from, to);
-	else {
+    if (from->is_empty() &&
+            workspace_has_only(to, surface)) {
+        update_workspace(shell, index, from, to);
+    } else {
 		if (shsurf != NULL &&
 		    wl_list_empty(&shsurf->workspace_transform.link))
 			wl_list_insert(&shell->workspaces.anim_sticky_list,
@@ -1893,10 +2021,9 @@ shell_surface_activate(struct shell_surface *shsurf)
 /* The surface will be inserted into the list immediately after the link
  * returned by this function (i.e. will be stacked immediately above the
  * returned link). */
-static struct weston_layer_entry *
-shell_surface_calculate_layer_link (struct shell_surface *shsurf)
+static struct weston_layer_entry* shell_surface_calculate_layer_link(struct shell_surface *shsurf)
 {
-	struct workspace *ws;
+    hb::Workspace *ws;
 
 	if (weston_desktop_surface_get_fullscreen(shsurf->desktop_surface) &&
 	    !shsurf->state.lowered) {
@@ -1906,8 +2033,8 @@ shell_surface_calculate_layer_link (struct shell_surface *shsurf)
 	/* Move the surface to a normal workspace layer so that surfaces
 	 * which were previously fullscreen or transient are no longer
 	 * rendered on top. */
-	ws = get_current_workspace(shsurf->shell);
-	return &ws->layer.view_list;
+    ws = get_current_workspace(shsurf->shell);
+    return &ws->layer()->view_list;
 }
 
 static void
@@ -2040,23 +2167,24 @@ static void
 set_minimized(struct weston_surface *surface)
 {
 	struct shell_surface *shsurf;
-	struct workspace *current_ws;
+    hb::Workspace *current_ws;
 	struct weston_view *view;
 	struct weston_subsurface *subsurface;
 
-	view = get_default_view(surface);
-	if (!view)
-		return;
+    view = get_default_view(surface);
+    if (!view) {
+        return;
+    }
 
 	assert(weston_surface_get_main_surface(view->surface) == view->surface);
 
 	shsurf = get_shell_surface(surface);
-	current_ws = get_current_workspace(shsurf->shell);
+    current_ws = get_current_workspace(shsurf->shell);
 
 	weston_layer_entry_remove(&view->layer_link);
 	weston_layer_entry_insert(&shsurf->shell->minimized_layer.view_list, &view->layer_link);
 
-	drop_focus_state(shsurf->shell, current_ws, view->surface);
+    drop_focus_state(shsurf->shell, current_ws, view->surface);
 	surface_keyboard_focus_lost(surface);
 
 	shell_surface_update_child_surface_layers(shsurf);
@@ -3221,7 +3349,7 @@ desktop_shell_set_lock_surface(struct wl_client *client,
 static void
 resume_desktop(struct desktop_shell *shell)
 {
-	struct workspace *ws = get_current_workspace(shell);
+    hb::Workspace *ws = get_current_workspace(shell);
 
 	weston_layer_unset_position(&shell->lock_layer);
 
@@ -3232,9 +3360,9 @@ resume_desktop(struct desktop_shell *shell)
 				  WESTON_LAYER_POSITION_FULLSCREEN);
 	weston_layer_set_position(&shell->panel_layer,
 				  WESTON_LAYER_POSITION_UI);
-	weston_layer_set_position(&ws->layer, WESTON_LAYER_POSITION_NORMAL);
+    weston_layer_set_position(ws->layer(), WESTON_LAYER_POSITION_NORMAL);
 
-	restore_focus_state(shell, get_current_workspace(shell));
+    restore_focus_state(shell, get_current_workspace(shell));
 
 	shell->locked = false;
 	shell_fade(shell, FADE_IN);
@@ -3740,11 +3868,10 @@ rotate_binding(struct weston_pointer *pointer, const struct timespec *time,
  *
  * This should be used when implementing shell-wide overlays, such as
  * the alt-tab switcher, which need to de-promote fullscreen layers. */
-void
-lower_fullscreen_layer(struct desktop_shell *shell,
-		       struct weston_output *lowering_output)
+void lower_fullscreen_layer(struct desktop_shell *shell,
+        struct weston_output *lowering_output)
 {
-	struct workspace *ws;
+    hb::Workspace *ws;
 	struct weston_view *view, *prev;
 
 	ws = get_current_workspace(shell);
@@ -3774,7 +3901,7 @@ lower_fullscreen_layer(struct desktop_shell *shell,
 
 		/* Lower the view to the workspace layer */
 		weston_layer_entry_remove(&view->layer_link);
-		weston_layer_entry_insert(&ws->layer.view_list, &view->layer_link);
+        weston_layer_entry_insert(&ws->layer()->view_list, &view->layer_link);
 		weston_view_damage_below(view);
 		weston_surface_damage(view->surface);
 
@@ -3794,14 +3921,14 @@ static struct shell_surface *get_last_child(struct shell_surface *shsurf)
 	return NULL;
 }
 
-void
-activate(struct desktop_shell *shell, struct weston_view *view,
-	 struct weston_seat *seat, uint32_t flags)
+void activate(struct desktop_shell *shell, struct weston_view *view,
+        struct weston_seat *seat, uint32_t flags)
 {
+    fprintf(stderr, " [DEBUG] BEGIN activate()\n");
 	struct weston_surface *es = view->surface;
 	struct weston_surface *main_surface;
 	struct focus_state *state;
-	struct workspace *ws;
+    hb::Workspace *ws;
 	struct weston_surface *old_es;
 	struct shell_surface *shsurf, *shsurf_child;
 	struct shell_seat *shseat = get_shell_seat(seat);
@@ -3836,11 +3963,14 @@ activate(struct desktop_shell *shell, struct weston_view *view,
 	shell_surface_activate(shsurf);
 
 	state = ensure_focus_state(shell, seat);
-	if (state == NULL)
-		return;
+    if (state == NULL) {
+        return;
+    }
 
-	old_es = state->keyboard_focus;
-	focus_state_set_focus(state, es);
+    fprintf(stderr, " [DEBUG]    MIDDLE\n");
+    old_es = state->keyboard_focus;
+    focus_state_set_focus(state, es);
+    fprintf(stderr, " [DEBUG]    ERROR HERE!\n");
 
 	if (weston_desktop_surface_get_fullscreen(shsurf->desktop_surface) &&
 	    flags & WESTON_ACTIVATE_FLAG_CONFIGURE)
@@ -3850,16 +3980,20 @@ activate(struct desktop_shell *shell, struct weston_view *view,
 	 * order as appropriate. */
 	shell_surface_update_layer(shsurf);
 
-	if (shell->focus_animation_type != ANIMATION_NONE) {
-		ws = get_current_workspace(shell);
-		animate_focus_change(shell, ws, get_default_view(old_es), get_default_view(es));
-	}
+    if (shell->focus_animation_type != ANIMATION_NONE) {
+        ws = get_current_workspace(shell);
+        animate_focus_change(shell, ws, get_default_view(old_es), get_default_view(es));
+    }
+    fprintf(stderr, " [DEBUG] END activate()\n");
 }
 
 /* no-op func for checking black surface */
 static void
 black_surface_committed(struct weston_surface *es, int32_t sx, int32_t sy)
 {
+    (void)es;
+    (void)sx;
+    (void)sy;
 }
 
 static bool
@@ -3950,7 +4084,7 @@ unfocus_all_seats(struct desktop_shell *shell)
 static void
 lock(struct desktop_shell *shell)
 {
-	struct workspace *ws = get_current_workspace(shell);
+    hb::Workspace *ws = get_current_workspace(shell);
 
 	if (shell->locked) {
 		weston_compositor_sleep(shell->compositor);
@@ -3967,7 +4101,7 @@ lock(struct desktop_shell *shell)
 	weston_layer_unset_position(&shell->fullscreen_layer);
 	if (shell->showing_input_panels)
 		weston_layer_unset_position(&shell->input_panel_layer);
-	weston_layer_unset_position(&ws->layer);
+    weston_layer_unset_position(ws->layer());
 
 	weston_layer_set_position(&shell->lock_layer,
 				  WESTON_LAYER_POSITION_LOCK);
@@ -4441,31 +4575,32 @@ struct switcher {
     pr::Vector<struct weston_view*> minimized_array;
 };
 
-static void
-switcher_next(struct switcher *switcher)
+static void switcher_next(struct switcher *switcher)
 {
+    fprintf(stderr, " [DEBUG] BEGIN switcher_next\n");
+
 	struct weston_view *view;
 	struct weston_view *first = NULL, *prev = NULL, *next = NULL;
 	struct shell_surface *shsurf;
-	struct workspace *ws = get_current_workspace(switcher->shell);
+    hb::Workspace *ws = get_current_workspace(switcher->shell);
 
-	 /* temporary re-display minimized surfaces */
-	struct weston_view *tmp;
-	struct weston_view **minimized;
-	wl_list_for_each_safe(view, tmp, &switcher->shell->minimized_layer.view_list.link, layer_link.link) {
-		weston_layer_entry_remove(&view->layer_link);
-		weston_layer_entry_insert(&ws->layer.view_list, &view->layer_link);
+    // temporary re-display minimized surfaces.
+    struct weston_view *tmp;
+    struct weston_view **minimized;
+    wl_list_for_each_safe(view, tmp, &switcher->shell->minimized_layer.view_list.link, layer_link.link) {
+        weston_layer_entry_remove(&view->layer_link);
+        weston_layer_entry_insert(&ws->layer()->view_list, &view->layer_link);
         /*
         minimized = (struct weston_view**)wl_array_add(
             &switcher->minimized_array,
             sizeof *minimized);
         */
 
-        *minimized = view;
+        **minimized = *view;
         switcher->minimized_array.push(*minimized);
     }
 
-	wl_list_for_each(view, &ws->layer.view_list.link, layer_link.link) {
+    wl_list_for_each(view, &ws->layer()->view_list.link, layer_link.link) {
 		shsurf = get_shell_surface(view->surface);
 		if (shsurf) {
 			if (first == NULL)
@@ -4517,9 +4652,9 @@ switcher_destroy(struct switcher *switcher)
 {
 	struct weston_view *view;
 	struct weston_keyboard *keyboard = switcher->grab.keyboard;
-	struct workspace *ws = get_current_workspace(switcher->shell);
+    hb::Workspace *ws = get_current_workspace(switcher->shell);
 
-	wl_list_for_each(view, &ws->layer.view_list.link, layer_link.link) {
+    wl_list_for_each(view, &ws->layer()->view_list.link, layer_link.link) {
 		if (is_focus_view(view))
 			continue;
 
@@ -4810,11 +4945,10 @@ shell_reposition_view_on_output_change(struct weston_view *view)
 	set_fullscreen(shsurf, false, NULL);
 }
 
-void
-shell_for_each_layer(struct desktop_shell *shell,
-		     shell_for_each_layer_func_t func, void *data)
+void shell_for_each_layer(struct desktop_shell *shell,
+        shell_for_each_layer_func_t func, void *data)
 {
-	struct workspace **ws;
+    hb::Workspace **ws;
 
 	func(shell, &shell->fullscreen_layer, data);
 	func(shell, &shell->panel_layer, data);
@@ -4827,7 +4961,8 @@ shell_for_each_layer(struct desktop_shell *shell,
         func(shell, &(*ws)->layer, data);
     */
     for (auto& ws: shell->workspaces.array) {
-        func(shell, &(ws->layer), data);
+        auto layer = ws->layer();
+        func(shell, layer, data);
     }
 }
 
@@ -5055,7 +5190,7 @@ shell_destroy(struct wl_listener *listener, void *data)
     wl_array_release(&shell->workspaces.array);
     */
     for (auto& ws: shell->workspaces.array) {
-        workspace_destroy(ws);
+        delete ws;
     }
     // TODO: Remove vector?
 
@@ -5213,6 +5348,8 @@ WL_EXPORT int
 wet_shell_init(struct weston_compositor *ec,
 	       int *argc, char *argv[])
 {
+    (void)argc;
+    (void)argv;
     fprintf(stderr, "== BEGIN wet_shell_init() ==\n");
 
     struct weston_seat *seat;
@@ -5277,12 +5414,12 @@ wet_shell_init(struct weston_compositor *ec,
         }
         */
 
-        auto ws = workspace_create(shell);
-        fprintf(stderr, " [DEBUG] is pointer same? %p\n", ws);
-        if (ws == NULL) {
+        auto ws = new hb::Workspace(shell);
+        fprintf(stderr, " [DEBUG] is pointer same? %p\n", (void*)ws);
+        if (ws == nullptr) {
             return -1;
         }
-        shell->workspaces.array.push(ws);
+        shell->workspaces.array.push((hb::Workspace* const&)ws);
         fprintf(stderr, " [DEBUG] workspace created and pushed to vector.\n");
     }
 	activate_workspace(shell, 0);

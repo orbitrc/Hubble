@@ -67,12 +67,16 @@ struct exposay_output {
 	int padding_inner;
 };
 
+namespace hb {
+class Workspace;
+}
+
 struct exposay {
 	/* XXX: Make these exposay_surfaces. */
 	struct weston_view *focus_prev;
 	struct weston_view *focus_current;
 	struct weston_view *clicked;
-	struct workspace *workspace;
+    hb::Workspace *workspace;
 	struct weston_seat *seat;
 
 	struct wl_list surface_list;
@@ -92,9 +96,14 @@ struct exposay {
 	bool mod_invalid;
 };
 
+struct desktop_shell;
+struct focus_state;
 
 namespace hb {
 
+//================
+// Focus Surface
+//================
 class FocusSurface
 {
 public:
@@ -118,19 +127,46 @@ private:
     struct weston_transform _workspace_transform;
 };
 
+//==============
+// Workspace
+//==============
+class Workspace
+{
+public:
+    Workspace(struct desktop_shell *shell);
+    ~Workspace();
+
+    bool is_empty() const;
+
+    struct weston_layer* layer();
+
+    pr::Vector<struct focus_state*>& focus_list();
+
+    FocusSurface* focus_surface_front();
+    void set_focus_surface_front(FocusSurface *front);
+
+    FocusSurface* focus_surface_back();
+    void set_focus_surface_back(FocusSurface *back);
+
+    struct weston_view_animation* focus_animation();
+    void set_focus_animation(struct weston_view_animation* anim);
+
+public:
+    struct wl_listener seat_destroyed_listener;
+
+private:
+    struct weston_layer _layer;
+
+    pr::Vector<struct focus_state*> _focus_list;
+
+    hb::FocusSurface *_fsurf_front;
+    hb::FocusSurface *_fsurf_back;
+    struct weston_view_animation *_focus_animation;
+};
+
 } // namespace hb
 
 
-struct workspace {
-	struct weston_layer layer;
-
-	struct wl_list focus_list;
-	struct wl_listener seat_destroyed_listener;
-
-    hb::FocusSurface *fsurf_front;
-    hb::FocusSurface *fsurf_back;
-	struct weston_view_animation *focus_animation;
-};
 
 struct shell_output {
 	struct desktop_shell  *shell;
@@ -202,7 +238,7 @@ struct desktop_shell {
 
 	struct {
 //		struct wl_array array;
-        pr::Vector<struct workspace*> array;
+        pr::Vector<hb::Workspace*> array;
 		unsigned int current;
 		unsigned int num;
 
@@ -213,8 +249,8 @@ struct desktop_shell {
 		int anim_dir;
 		struct timespec anim_timestamp;
 		double anim_current;
-		struct workspace *anim_from;
-		struct workspace *anim_to;
+        hb::Workspace *anim_from;
+        hb::Workspace *anim_to;
 	} workspaces;
 
 	struct {
@@ -260,8 +296,7 @@ get_default_view(struct weston_surface *surface);
 struct shell_surface *
 get_shell_surface(struct weston_surface *surface);
 
-struct workspace *
-get_current_workspace(struct desktop_shell *shell);
+hb::Workspace* get_current_workspace(struct desktop_shell *shell);
 
 void
 get_output_work_area(struct desktop_shell *shell,

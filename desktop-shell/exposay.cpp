@@ -256,7 +256,7 @@ exposay_margin_size(struct desktop_shell *shell, pixman_rectangle32_t exposay_ar
 static enum exposay_layout_state
 exposay_layout(struct desktop_shell *shell, struct shell_output *shell_output)
 {
-	struct workspace *workspace = shell->exposay.workspace;
+    hb::Workspace *workspace = shell->exposay.workspace;
 	struct weston_output *output = shell_output->output;
 	struct exposay_output *eoutput = &shell_output->eoutput;
 	struct weston_view *view;
@@ -268,7 +268,7 @@ exposay_layout(struct desktop_shell *shell, struct shell_output *shell_output)
 	int i;
 
 	eoutput->num_surfaces = 0;
-	wl_list_for_each(view, &workspace->layer.view_list.link, layer_link.link) {
+    wl_list_for_each(view, &workspace->layer()->view_list.link, layer_link.link) {
 		if (!get_shell_surface(view->surface))
 			continue;
 		if (view->output != output)
@@ -316,7 +316,7 @@ exposay_layout(struct desktop_shell *shell, struct shell_output *shell_output)
 	exposay_margin_size(shell, exposay_area, row_size, column_size, &left_margin, &top_margin);
 
 	i = 0;
-	wl_list_for_each(view, &workspace->layer.view_list.link, layer_link.link) {
+    wl_list_for_each(view, &workspace->layer()->view_list.link, layer_link.link) {
 
 		if (!get_shell_surface(view->surface))
 			continue;
