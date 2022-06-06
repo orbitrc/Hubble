@@ -206,8 +206,7 @@ surface_rotate(struct shell_surface *surface, struct weston_pointer *pointer);
 static void
 shell_fade_startup(struct desktop_shell *shell);
 
-static void
-shell_fade(struct desktop_shell *shell, enum fade_type type);
+static void shell_fade(struct desktop_shell *shell, FadeType type);
 
 static struct shell_seat *
 get_shell_seat(struct weston_seat *seat);
@@ -702,8 +701,7 @@ static void focus_state_seat_destroy(struct wl_listener *listener, void *data)
     delete state;
 }
 
-static void
-focus_state_surface_destroy(struct wl_listener *listener, void *data)
+static void focus_state_surface_destroy(struct wl_listener *listener, void *data)
 {
     (void)data;
     hb::FocusState *state = container_of(listener,
@@ -3285,7 +3283,7 @@ lock_surface_committed(struct weston_surface *surface, int32_t sx, int32_t sy)
 		weston_view_update_transform(view);
 		surface->is_mapped = true;
 		view->is_mapped = true;
-		shell_fade(shell, FADE_IN);
+        shell_fade(shell, FadeType::FadeIn);
 	}
 }
 
@@ -3345,7 +3343,7 @@ resume_desktop(struct desktop_shell *shell)
     restore_focus_state(shell, get_current_workspace(shell));
 
 	shell->locked = false;
-	shell_fade(shell, FADE_IN);
+    shell_fade(shell, FadeType::FadeIn);
 	weston_compositor_damage_all(shell->compositor);
 }
 
@@ -4103,10 +4101,10 @@ unlock(struct desktop_shell *shell)
 {
 	struct wl_resource *shell_resource;
 
-	if (!shell->locked || shell->lock_surface) {
-		shell_fade(shell, FADE_IN);
-		return;
-	}
+    if (!shell->locked || shell->lock_surface) {
+        shell_fade(shell, FadeType::FadeIn);
+        return;
+    }
 
 	/* If desktop-shell client has gone away, unlock immediately. */
 	if (!shell->child.desktop_shell) {
@@ -4130,11 +4128,11 @@ shell_fade_done_for_output(struct weston_view_animation *animation, void *data)
 
 	shell_output->fade.animation = NULL;
 	switch (shell_output->fade.type) {
-	case FADE_IN:
+    case FadeType::FadeIn:
 		weston_surface_destroy(shell_output->fade.view->surface);
 		shell_output->fade.view = NULL;
 		break;
-	case FADE_OUT:
+    case FadeType::FadeOut:
 		lock(shell);
 		break;
 	default:
@@ -4171,17 +4169,16 @@ shell_fade_create_surface_for_output(struct desktop_shell *shell, struct shell_o
 	return view;
 }
 
-static void
-shell_fade(struct desktop_shell *shell, enum fade_type type)
+static void shell_fade(struct desktop_shell *shell, FadeType type)
 {
 	float tint;
 	struct shell_output *shell_output;
 
 	switch (type) {
-	case FADE_IN:
+    case FadeType::FadeIn:
 		tint = 0.0;
 		break;
-	case FADE_OUT:
+    case FadeType::FadeOut:
 		tint = 1.0;
 		break;
 	default:
@@ -4227,9 +4224,9 @@ do_shell_fade_startup(void *data)
     struct desktop_shell *shell = static_cast<struct desktop_shell*>(data);
 	struct shell_output *shell_output;
 
-	if (shell->startup_animation_type == ANIMATION_FADE) {
-		shell_fade(shell, FADE_IN);
-	} else {
+    if (shell->startup_animation_type == ANIMATION_FADE) {
+        shell_fade(shell, FadeType::FadeIn);
+    } else {
 		weston_log("desktop shell: "
 			   "unexpected fade-in animation type %d\n",
 			   shell->startup_animation_type);
@@ -4317,7 +4314,7 @@ idle_handler(struct wl_listener *listener, void *data)
 	wl_list_for_each(seat, &shell->compositor->seat_list, link)
 		weston_seat_break_desktop_grabs(seat);
 
-	shell_fade(shell, FADE_OUT);
+    shell_fade(shell, FadeType::FadeOut);
 	/* lock() is called from shell_fade_done_for_output() */
 }
 
@@ -5324,9 +5321,9 @@ handle_seat_created(struct wl_listener *listener, void *data)
 	create_shell_seat(shell, seat);
 }
 
-WL_EXPORT int
-wet_shell_init(struct weston_compositor *ec,
-	       int *argc, char *argv[])
+WL_EXPORT
+int wet_shell_init(struct weston_compositor *ec,
+        int *argc, char *argv[])
 {
     (void)argc;
     (void)argv;

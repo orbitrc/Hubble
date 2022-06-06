@@ -42,9 +42,9 @@ enum animation_type {
 	ANIMATION_DIM_LAYER,
 };
 
-enum fade_type {
-	FADE_IN,
-	FADE_OUT
+enum class FadeType {
+    FadeIn,
+    FadeOut,
 };
 
 enum exposay_target_state {
@@ -97,7 +97,6 @@ struct exposay {
 };
 
 struct desktop_shell;
-struct focus_state;
 
 namespace hb {
 
@@ -209,7 +208,7 @@ struct shell_output {
 	struct {
 		struct weston_view *view;
 		struct weston_view_animation *animation;
-		enum fade_type type;
+        FadeType type;
 		struct wl_event_source *startup_timer;
 	} fade;
 };
