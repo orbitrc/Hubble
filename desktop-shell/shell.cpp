@@ -553,59 +553,83 @@ static bool is_focus_view(struct weston_view *view)
     return is_focus_surface(view->surface);
 }
 
-static struct focus_surface *
-create_focus_surface(struct weston_compositor *ec,
-		     struct weston_output *output)
+//===================
+// Focus Surface
+//===================
+
+hb::FocusSurface::FocusSurface(struct weston_compositor *weston_compositor,
+        struct weston_output *output)
 {
-	struct focus_surface *fsurf = NULL;
-	struct weston_surface *surface = NULL;
+    struct weston_surface *surface = nullptr;
 
-    fsurf = (struct focus_surface*)malloc(sizeof *fsurf);
-	if (!fsurf)
-		return NULL;
+    this->set_surface(weston_surface_create(weston_compositor));
+    surface = this->surface();
+    if (surface == nullptr) {
+//        free(focus_surface);
+        fprintf(stderr, "FocusSurface::FocusSurface() - surface is null.\n");
+        exit(1);
+    }
 
-	fsurf->surface = weston_surface_create(ec);
-	surface = fsurf->surface;
-	if (surface == NULL) {
-		free(fsurf);
-		return NULL;
-	}
+    surface->committed = focus_surface_committed;
+    surface->output = output;
+    surface->is_mapped = true;
+    surface->committed_private = this;
+    weston_surface_set_label_func(surface, focus_surface_get_label);
 
-	surface->committed = focus_surface_committed;
-	surface->output = output;
-	surface->is_mapped = true;
-	surface->committed_private = fsurf;
-	weston_surface_set_label_func(surface, focus_surface_get_label);
+    this->set_view(weston_view_create(surface));
+    if (this->view() == nullptr) {
+        weston_surface_destroy(surface);
+        fprintf(stderr, "FocusSurface::FocusSurface() - view is null.\n");
+        exit(1);
+    }
+    weston_view_set_output(this->view(), output);
+    this->view()->is_mapped = true;
 
-	fsurf->view = weston_view_create(surface);
-	if (fsurf->view == NULL) {
-		weston_surface_destroy(surface);
-		free(fsurf);
-		return NULL;
-	}
-	weston_view_set_output(fsurf->view, output);
-	fsurf->view->is_mapped = true;
+    weston_surface_set_size(surface, output->width, output->height);
+    weston_view_set_position(this->view(), output->x, output->y);
+    weston_surface_set_color(surface, 0.0, 0.0, 0.0, 1.0);
 
-	weston_surface_set_size(surface, output->width, output->height);
-	weston_view_set_position(fsurf->view, output->x, output->y);
-	weston_surface_set_color(surface, 0.0, 0.0, 0.0, 1.0);
-	pixman_region32_fini(&surface->opaque);
-	pixman_region32_init_rect(&surface->opaque, output->x, output->y,
-				  output->width, output->height);
-	pixman_region32_fini(&surface->input);
-	pixman_region32_init(&surface->input);
+    pixman_region32_fini(&surface->opaque);
+    pixman_region32_init_rect(&surface->opaque, output->x, output->y,
+        output->width, output->height);
+    pixman_region32_fini(&surface->input);
+    pixman_region32_init(&surface->input);
 
-	wl_list_init(&fsurf->workspace_transform.link);
-
-	return fsurf;
+    // !!!!
+    struct weston_transform transform = this->workspace_transform();
+    wl_list_init(&transform.link);
 }
 
-static void
-focus_surface_destroy(struct focus_surface *fsurf)
+hb::FocusSurface::~FocusSurface()
 {
-	weston_surface_destroy(fsurf->surface);
-	free(fsurf);
+    weston_surface_destroy(this->surface());
 }
+
+struct weston_view* hb::FocusSurface::view()
+{
+    return this->_weston_view;
+}
+
+void hb::FocusSurface::set_view(struct weston_view *view)
+{
+    this->_weston_view = view;
+}
+
+struct weston_surface* hb::FocusSurface::surface()
+{
+    return this->_weston_surface;
+}
+
+void hb::FocusSurface::set_surface(struct weston_surface *surface)
+{
+    this->_weston_surface = surface;
+}
+
+struct weston_transform hb::FocusSurface::workspace_transform()
+{
+    return this->_workspace_transform;
+}
+
 
 static void
 focus_animation_done(struct weston_view_animation *animation, void *data)
@@ -678,8 +702,8 @@ focus_state_surface_destroy(struct wl_listener *listener, void *data)
 				weston_view_animation_destroy(state->ws->focus_animation);
 
 			state->ws->focus_animation = weston_fade_run(
-				state->ws->fsurf_front->view,
-				state->ws->fsurf_front->view->alpha, 0.0, 300,
+                state->ws->fsurf_front->view(),
+                state->ws->fsurf_front->view()->alpha, 0.0, 300,
 				focus_animation_done, state->ws);
 		}
 
@@ -828,22 +852,23 @@ animate_focus_change(struct desktop_shell *shell, struct workspace *ws,
 
 	output = get_default_output(shell->compositor);
 	if (ws->fsurf_front == NULL && (from || to)) {
-		ws->fsurf_front = create_focus_surface(shell->compositor, output);
+        ws->fsurf_front = new hb::FocusSurface(shell->compositor, output);
 		if (ws->fsurf_front == NULL)
 			return;
-		ws->fsurf_front->view->alpha = 0.0;
+        ws->fsurf_front->view()->alpha = 0.0;
 
-		ws->fsurf_back = create_focus_surface(shell->compositor, output);
-		if (ws->fsurf_back == NULL) {
-			focus_surface_destroy(ws->fsurf_front);
-			return;
-		}
-		ws->fsurf_back->view->alpha = 0.0;
+        ws->fsurf_back = new hb::FocusSurface(shell->compositor, output);
+        if (ws->fsurf_back == NULL) {
+            // focus_surface_destroy(ws->fsurf_front);
+            delete ws->fsurf_front;
+            return;
+        }
+        ws->fsurf_back->view()->alpha = 0.0;
 
 		focus_surface_created = true;
 	} else {
-		weston_layer_entry_remove(&ws->fsurf_front->view->layer_link);
-		weston_layer_entry_remove(&ws->fsurf_back->view->layer_link);
+        weston_layer_entry_remove(&ws->fsurf_front->view()->layer_link);
+        weston_layer_entry_remove(&ws->fsurf_back->view()->layer_link);
 	}
 
 	if (ws->focus_animation) {
@@ -851,53 +876,57 @@ animate_focus_change(struct desktop_shell *shell, struct workspace *ws,
 		ws->focus_animation = NULL;
 	}
 
-	if (to)
-		weston_layer_entry_insert(&to->layer_link,
-					  &ws->fsurf_front->view->layer_link);
-	else if (from)
-		weston_layer_entry_insert(&ws->layer.view_list,
-					  &ws->fsurf_front->view->layer_link);
+    if (to) {
+        weston_layer_entry_insert(&to->layer_link,
+            &ws->fsurf_front->view()->layer_link);
+    } else if (from) {
+        weston_layer_entry_insert(&ws->layer.view_list,
+            &ws->fsurf_front->view()->layer_link);
+    }
 
-	if (focus_surface_created) {
-		ws->focus_animation = weston_fade_run(
-			ws->fsurf_front->view,
-			ws->fsurf_front->view->alpha, 0.4, 300,
-			focus_animation_done, ws);
-	} else if (from) {
-		weston_layer_entry_insert(&from->layer_link,
-					  &ws->fsurf_back->view->layer_link);
-		ws->focus_animation = weston_stable_fade_run(
-			ws->fsurf_front->view, 0.0,
-			ws->fsurf_back->view, 0.4,
-			focus_animation_done, ws);
-	} else if (to) {
-		weston_layer_entry_insert(&ws->layer.view_list,
-					  &ws->fsurf_back->view->layer_link);
-		ws->focus_animation = weston_stable_fade_run(
-			ws->fsurf_front->view, 0.0,
-			ws->fsurf_back->view, 0.4,
-			focus_animation_done, ws);
-	}
+    if (focus_surface_created) {
+        ws->focus_animation = weston_fade_run(
+            ws->fsurf_front->view(),
+            ws->fsurf_front->view()->alpha, 0.4, 300,
+            focus_animation_done, ws);
+    } else if (from) {
+        weston_layer_entry_insert(&from->layer_link,
+            &ws->fsurf_back->view()->layer_link);
+        ws->focus_animation = weston_stable_fade_run(
+            ws->fsurf_front->view(), 0.0,
+            ws->fsurf_back->view(), 0.4,
+            focus_animation_done, ws);
+    } else if (to) {
+        weston_layer_entry_insert(&ws->layer.view_list,
+            &ws->fsurf_back->view()->layer_link);
+        ws->focus_animation = weston_stable_fade_run(
+            ws->fsurf_front->view(), 0.0,
+            ws->fsurf_back->view(), 0.4,
+            focus_animation_done, ws);
+    }
 }
 
 static void
 desktop_shell_destroy_views_on_layer(struct weston_layer *layer);
 
-static void
-workspace_destroy(struct workspace *ws)
+static void workspace_destroy(struct workspace *ws)
 {
 	struct focus_state *state, *next;
 
 	wl_list_for_each_safe(state, next, &ws->focus_list, link)
 		focus_state_destroy(state);
 
-	if (ws->fsurf_front)
-		focus_surface_destroy(ws->fsurf_front);
-	if (ws->fsurf_back)
-		focus_surface_destroy(ws->fsurf_back);
+    if (ws->fsurf_front) {
+//		focus_surface_destroy(ws->fsurf_front);
+        delete ws->fsurf_front;
+    }
+    if (ws->fsurf_back) {
+        //focus_surface_destroy(ws->fsurf_back);
+        delete ws->fsurf_back;
+    }
 
-	desktop_shell_destroy_views_on_layer(&ws->layer);
-	free(ws);
+    desktop_shell_destroy_views_on_layer(&ws->layer);
+    free(ws);
 }
 
 static void

@@ -98,14 +98,39 @@ struct focus_surface {
 	struct weston_transform workspace_transform;
 };
 
+namespace hb {
+
+class FocusSurface {
+public:
+    FocusSurface(struct weston_compositor *weston_compositor,
+            struct weston_output *output);
+    ~FocusSurface();
+
+    struct weston_surface* surface();
+    void set_surface(struct weston_surface *surface);
+
+    struct weston_view* view();
+    void set_view(struct weston_view *view);
+
+    struct weston_transform workspace_transform();
+    void set_workspace_transform(struct weston_transform transform);
+
+private:
+    struct weston_surface *_weston_surface;
+    struct weston_view *_weston_view;
+    struct weston_transform _workspace_transform;
+};
+
+} // namespace hb
+
 struct workspace {
 	struct weston_layer layer;
 
 	struct wl_list focus_list;
 	struct wl_listener seat_destroyed_listener;
 
-	struct focus_surface *fsurf_front;
-	struct focus_surface *fsurf_back;
+    hb::FocusSurface *fsurf_front;
+    hb::FocusSurface *fsurf_back;
 	struct weston_view_animation *focus_animation;
 };
 
