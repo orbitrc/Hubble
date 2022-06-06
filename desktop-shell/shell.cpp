@@ -3999,7 +3999,6 @@ void activate(struct desktop_shell *shell, struct weston_view *view,
     fprintf(stderr, " [DEBUG]    MIDDLE\n");
     old_es = state->keyboard_focus;
     state->set_focus(es);
-    fprintf(stderr, " [DEBUG]    ERROR HERE!\n");
 
 	if (weston_desktop_surface_get_fullscreen(shsurf->desktop_surface) &&
 	    flags & WESTON_ACTIVATE_FLAG_CONFIGURE)
@@ -5493,6 +5492,7 @@ int wet_shell_init(struct weston_compositor *ec,
 
 	clock_gettime(CLOCK_MONOTONIC, &shell->startup_time);
 
+    fprintf(stderr, "== END wet_shell_init() ==\n");
 	return 0;
 }
 
