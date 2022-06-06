@@ -4,6 +4,9 @@ default:
 	meson build/ --prefix=$(PWD)/build
 	ninja -C build/ install
 
+run:
+	LD_LIBRARY_PATH=build/lib build/bin/weston
+
 protocols:
 	wayland-scanner client-header $(WAYLAND_PROTOCOLS_STABLE_DIR)/xdg-shell/xdg-shell.xml wayland-protocols/stable/xdg-shell.h
 	wayland-scanner private-code $(WAYLAND_PROTOCOLS_STABLE_DIR)/xdg-shell/xdg-shell.xml wayland-protocols/stable/xdg-shell.c

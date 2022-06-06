@@ -1671,7 +1671,7 @@ constrain_position(struct weston_move_grab *move, int *cx, int *cy)
 	int x, y, bottom;
 	const int safety = 50;
 	pixman_rectangle32_t area;
-	struct weston_geometry geometry;
+    hb::Geometry geometry;
 
 	x = wl_fixed_to_int(pointer->x + move->dx);
 	y = wl_fixed_to_int(pointer->y + move->dy);
@@ -1679,17 +1679,20 @@ constrain_position(struct weston_move_grab *move, int *cx, int *cy)
 	if (shsurf->shell->panel_position ==
 	    WESTON_DESKTOP_SHELL_PANEL_POSITION_TOP) {
 		get_output_work_area(shsurf->shell, surface->output, &area);
-		geometry =
-			weston_desktop_surface_get_geometry(shsurf->desktop_surface);
+        auto w_geometry = weston_desktop_surface_get_geometry(shsurf->desktop_surface);
+        geometry.set_x(w_geometry.x);
+        geometry.set_y(w_geometry.y);
+        geometry.set_width(w_geometry.width);
+        geometry.set_height(w_geometry.height);
 
-		bottom = y + geometry.height + geometry.y;
+        bottom = y + geometry.height() + geometry.y();
 		if (bottom - safety < area.y)
-			y = area.y + safety - geometry.height
-			  - geometry.y;
+            y = area.y + safety - geometry.height()
+              - geometry.y();
 
 		if (move->client_initiated &&
-		    y + geometry.y < area.y)
-			y = area.y - geometry.y;
+            y + geometry.y() < area.y)
+            y = area.y - geometry.y();
 	}
 
 	*cx = x;

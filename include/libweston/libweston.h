@@ -79,6 +79,8 @@ namespace hb {
 class Geometry
 {
 public:
+    Geometry();
+
     Geometry(int32_t x, int32_t y, int32_t width, int32_t height);
 
     int32_t x() const;
