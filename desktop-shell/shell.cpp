@@ -534,13 +534,12 @@ focus_surface_committed(struct weston_surface *es, int32_t sx, int32_t sy)
 {
 }
 
-static struct focus_surface *
-get_focus_surface(struct weston_surface *surface)
+static hb::FocusSurface* get_focus_surface(struct weston_surface *surface)
 {
-	if (surface->committed == focus_surface_committed)
-        return static_cast<struct focus_surface*>(surface->committed_private);
-	else
-		return NULL;
+    if (surface->committed == focus_surface_committed)
+        return static_cast<hb::FocusSurface*>(surface->committed_private);
+    else
+        return NULL;
 }
 
 static bool is_focus_surface(struct weston_surface *es)
@@ -628,6 +627,11 @@ void hb::FocusSurface::set_surface(struct weston_surface *surface)
 struct weston_transform hb::FocusSurface::workspace_transform()
 {
     return this->_workspace_transform;
+}
+
+struct weston_transform* hb::FocusSurface::workspace_transform_ptr()
+{
+    return &(this->_workspace_transform);
 }
 
 
@@ -1002,16 +1006,15 @@ get_output_height(struct weston_output *output)
 	return abs(output->region.extents.y1 - output->region.extents.y2);
 }
 
-static struct weston_transform *
-view_get_transform(struct weston_view *view)
+static struct weston_transform* view_get_transform(struct weston_view *view)
 {
-	struct focus_surface *fsurf = NULL;
-	struct shell_surface *shsurf = NULL;
+    class hb::FocusSurface *fsurf = NULL;
+    struct shell_surface *shsurf = NULL;
 
-	if (is_focus_view(view)) {
-		fsurf = get_focus_surface(view->surface);
-		return &fsurf->workspace_transform;
-	}
+    if (is_focus_view(view)) {
+        fsurf = get_focus_surface(view->surface);
+        return fsurf->workspace_transform_ptr();
+    }
 
 	shsurf = get_shell_surface(view->surface);
 	if (shsurf)

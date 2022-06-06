@@ -92,15 +92,11 @@ struct exposay {
 	bool mod_invalid;
 };
 
-struct focus_surface {
-	struct weston_surface *surface;
-	struct weston_view *view;
-	struct weston_transform workspace_transform;
-};
 
 namespace hb {
 
-class FocusSurface {
+class FocusSurface
+{
 public:
     FocusSurface(struct weston_compositor *weston_compositor,
             struct weston_output *output);
@@ -113,6 +109,7 @@ public:
     void set_view(struct weston_view *view);
 
     struct weston_transform workspace_transform();
+    struct weston_transform* workspace_transform_ptr();
     void set_workspace_transform(struct weston_transform transform);
 
 private:
@@ -122,6 +119,7 @@ private:
 };
 
 } // namespace hb
+
 
 struct workspace {
 	struct weston_layer layer;
