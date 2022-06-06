@@ -69,7 +69,7 @@ struct exposay_output {
 
 namespace hb {
 class Workspace;
-}
+} // namespace hb
 
 struct exposay {
 	/* XXX: Make these exposay_surfaces. */
@@ -97,6 +97,7 @@ struct exposay {
 };
 
 struct desktop_shell;
+struct input_panel_surface;
 
 namespace hb {
 
@@ -221,6 +222,75 @@ public:
 
 };
 
+//=================
+// Desktop Shell
+//=================
+class DesktopShell
+{
+public:
+    //===========
+    // Child
+    //===========
+    class Child
+    {
+    public:
+        struct wl_client *client;
+        struct wl_resource *desktop_shell;
+        struct wl_listener client_destroy_listener;
+
+        unsigned deathcount;
+        struct timespec deathstamp;
+    };
+
+    //===========
+    // TextInput
+    //===========
+    class TextInput
+    {
+    public:
+        struct weston_surface *surface;
+        pixman_box32_t cursor_rectangle;
+    };
+
+    //=============
+    // Workspaces
+    //=============
+    class Workspaces
+    {
+    public:
+        pr::Vector<hb::Workspace*> array;
+        unsigned int current;
+        unsigned int num;
+
+        struct weston_animation animation;
+        struct wl_list anim_sticky_list;
+        int anim_dir;
+        struct timespec anim_timestamp;
+        double anim_current;
+        hb::Workspace *anim_from;
+        hb::Workspace *anim_to;
+    };
+
+    //==============
+    // InputPanel
+    //==============
+    class InputPanel
+    {
+    public:
+        struct wl_resource *binding;
+        pr::Vector<struct input_panel_surface*> surfaces;
+    };
+
+public:
+    DesktopShell();
+    ~DesktopShell();
+
+public:
+
+private:
+
+};
+
 } // namespace hb
 
 
@@ -292,10 +362,10 @@ struct desktop_shell {
 	struct {
 //		struct wl_array array;
         pr::Vector<hb::Workspace*> array;
-		unsigned int current;
-		unsigned int num;
+        unsigned int current;
+        unsigned int num;
 
-		struct wl_list client_list;
+//        struct wl_list client_list;
 
 		struct weston_animation animation;
 		struct wl_list anim_sticky_list;
@@ -306,10 +376,7 @@ struct desktop_shell {
         hb::Workspace *anim_to;
 	} workspaces;
 
-	struct {
-		struct wl_resource *binding;
-		struct wl_list surfaces;
-	} input_panel;
+    hb::DesktopShell::InputPanel input_panel;
 
 	struct exposay exposay;
 
@@ -326,7 +393,7 @@ struct desktop_shell {
 	struct wl_listener seat_create_listener;
 	struct wl_listener output_create_listener;
 	struct wl_listener output_move_listener;
-	struct wl_list output_list;
+    pr::Vector<struct shell_output*> output_list;
 	struct wl_list seat_list;
 
 	enum weston_desktop_shell_panel_position panel_position;
@@ -368,10 +435,10 @@ void
 exposay_binding(struct weston_keyboard *keyboard,
 		enum weston_keyboard_modifier modifier,
 		void *data);
-int
-input_panel_setup(struct desktop_shell *shell);
-void
-input_panel_destroy(struct desktop_shell *shell);
+
+int input_panel_setup(struct desktop_shell *shell);
+
+void input_panel_destroy(struct desktop_shell *shell);
 
 typedef void (*shell_for_each_layer_func_t)(struct desktop_shell *,
 					    struct weston_layer *, void *);

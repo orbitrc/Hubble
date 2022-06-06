@@ -3115,16 +3115,23 @@ configure_static_view(struct weston_view *ev, struct weston_layer *layer, int x,
 }
 
 
-static struct shell_output *
-find_shell_output_from_weston_output(struct desktop_shell *shell,
-				     struct weston_output *output)
+static struct shell_output* find_shell_output_from_weston_output(
+        struct desktop_shell *shell,
+        struct weston_output *output)
 {
-	struct shell_output *shell_output;
+//	struct shell_output *shell_output;
 
+    /*
 	wl_list_for_each(shell_output, &shell->output_list, link) {
 		if (shell_output->output == output)
 			return shell_output;
 	}
+    */
+    for (auto& shell_output: shell->output_list) {
+        if (shell_output->output == output) {
+            return shell_output;
+        }
+    }
 
 	return NULL;
 }
@@ -3650,7 +3657,7 @@ do_zoom(struct weston_seat *seat, const struct timespec *time, uint32_t key,
 		return;
 	}
 
-	wl_list_for_each(output, &compositor->output_list, link) {
+    wl_list_for_each(output, &compositor->output_list, link) {
 		if (pixman_region32_contains_point(&output->region,
 						   wl_fixed_to_double(pointer->x),
 						   wl_fixed_to_double(pointer->y),
@@ -4222,7 +4229,7 @@ shell_fade_create_surface_for_output(struct desktop_shell *shell, struct shell_o
 static void shell_fade(struct desktop_shell *shell, FadeType type)
 {
 	float tint;
-	struct shell_output *shell_output;
+//	struct shell_output *shell_output;
 
 	switch (type) {
     case FadeType::FadeIn:
@@ -4237,7 +4244,8 @@ static void shell_fade(struct desktop_shell *shell, FadeType type)
 	}
 
 	/* Create a separate fade surface for each output */
-	wl_list_for_each(shell_output, &shell->output_list, link) {
+//	wl_list_for_each(shell_output, &shell->output_list, link) {
+    for (auto& shell_output: shell->output_list) {
         shell_output->fade.set_type(type);
 
         if (shell_output->fade.view() == NULL) {
@@ -4269,11 +4277,10 @@ static void shell_fade(struct desktop_shell *shell, FadeType type)
 	}
 }
 
-static void
-do_shell_fade_startup(void *data)
+static void do_shell_fade_startup(void *data)
 {
     struct desktop_shell *shell = static_cast<struct desktop_shell*>(data);
-	struct shell_output *shell_output;
+//	struct shell_output *shell_output;
 
     if (shell->startup_animation_type == ANIMATION_FADE) {
         shell_fade(shell, FadeType::FadeIn);
@@ -4281,21 +4288,22 @@ do_shell_fade_startup(void *data)
 		weston_log("desktop shell: "
 			   "unexpected fade-in animation type %d\n",
 			   shell->startup_animation_type);
-		wl_list_for_each(shell_output, &shell->output_list, link) {
+//		wl_list_for_each(shell_output, &shell->output_list, link) {
+        for (auto& shell_output: shell->output_list) {
             weston_surface_destroy(shell_output->fade.view()->surface);
             shell_output->fade.set_view(nullptr);
 		}
 	}
 }
 
-static void
-shell_fade_startup(struct desktop_shell *shell)
+static void shell_fade_startup(struct desktop_shell *shell)
 {
 	struct wl_event_loop *loop;
-	struct shell_output *shell_output;
+//	struct shell_output *shell_output;
 	bool has_fade = false;
 
-	wl_list_for_each(shell_output, &shell->output_list, link) {
+//	wl_list_for_each(shell_output, &shell->output_list, link) {
+    for (auto& shell_output: shell->output_list) {
         if (!shell_output->fade.startup_timer)
             continue;
 
@@ -4319,8 +4327,7 @@ fade_startup_timeout(void *data)
 	return 0;
 }
 
-static void
-shell_fade_init(struct desktop_shell *shell)
+static void shell_fade_init(struct desktop_shell *shell)
 {
 	/* Make compositor output all black, and wait for the desktop-shell
 	 * client to signal it is ready, then fade in. The timer triggers a
@@ -4328,12 +4335,13 @@ shell_fade_init(struct desktop_shell *shell)
 	 */
 
 	struct wl_event_loop *loop;
-	struct shell_output *shell_output;
+//	struct shell_output *shell_output;
 
 	if (shell->startup_animation_type == ANIMATION_NONE)
 		return;
 
-	wl_list_for_each(shell_output, &shell->output_list, link) {
+//	wl_list_for_each(shell_output, &shell->output_list, link) {
+    for (auto& shell_output: shell->output_list) {
         if (shell_output->fade.view() != nullptr) {
 			weston_log("%s: warning: fade surface already exists\n",
 				   __func__);
@@ -5006,10 +5014,9 @@ shell_output_changed_move_layer(struct desktop_shell *shell,
 
 }
 
-static void
-shell_output_destroy(struct shell_output *shell_output)
+static void shell_output_destroy(struct shell_output *shell_output)
 {
-	struct desktop_shell *shell = shell_output->shell;
+    struct desktop_shell *shell = shell_output->shell;
 
 	shell_for_each_layer(shell, shell_output_changed_move_layer, NULL);
 
@@ -5021,17 +5028,21 @@ shell_output_destroy(struct shell_output *shell_output)
     if (shell_output->fade.view()) {
 		/* destroys the view as well */
         weston_surface_destroy(shell_output->fade.view()->surface);
-	}
+    }
 
-	if (shell_output->fade.startup_timer)
-		wl_event_source_remove(shell_output->fade.startup_timer);
+    if (shell_output->fade.startup_timer) {
+        wl_event_source_remove(shell_output->fade.startup_timer);
+    }
 
-	if (shell_output->panel_surface)
-		wl_list_remove(&shell_output->panel_surface_listener.link);
-	if (shell_output->background_surface)
-		wl_list_remove(&shell_output->background_surface_listener.link);
+    if (shell_output->panel_surface) {
+        wl_list_remove(&shell_output->panel_surface_listener.link);
+    }
+    if (shell_output->background_surface) {
+        wl_list_remove(&shell_output->background_surface_listener.link);
+    }
 	wl_list_remove(&shell_output->destroy_listener.link);
-	wl_list_remove(&shell_output->link);
+    fprintf(stderr, " [DEBUG] shell_output_destroy() - before wl_list_remove\n");
+//    wl_list_remove(&shell_output->link); // this line occurs error.
 	free(shell_output);
 }
 
@@ -5071,9 +5082,8 @@ handle_output_resized(struct wl_listener *listener, void *data)
 	shell_resize_surface_to_output(shell, sh_output->panel_surface, output);
 }
 
-static void
-create_shell_output(struct desktop_shell *shell,
-					struct weston_output *output)
+static void create_shell_output(struct desktop_shell *shell,
+        struct weston_output *output)
 {
 	struct shell_output *shell_output;
 
@@ -5086,11 +5096,14 @@ create_shell_output(struct desktop_shell *shell,
 	shell_output->destroy_listener.notify = handle_output_destroy;
 	wl_signal_add(&output->destroy_signal,
 		      &shell_output->destroy_listener);
-	wl_list_insert(shell->output_list.prev, &shell_output->link);
+//	wl_list_insert(shell->output_list.prev, &shell_output->link);
+    shell->output_list.push(shell_output);
 
-	if (wl_list_length(&shell->output_list) == 1)
-		shell_for_each_layer(shell,
-				     shell_output_changed_move_layer, NULL);
+//	if (wl_list_length(&shell->output_list) == 1)
+    if (shell->output_list.length() == 1) {
+        shell_for_each_layer(shell,
+            shell_output_changed_move_layer, NULL);
+    }
 }
 
 static void
@@ -5138,9 +5151,10 @@ setup_output_destroy_handler(struct weston_compositor *ec,
 {
 	struct weston_output *output;
 
-	wl_list_init(&shell->output_list);
-	wl_list_for_each(output, &ec->output_list, link)
-		create_shell_output(shell, output);
+//    wl_list_init(&shell->output_list);
+    wl_list_for_each(output, &ec->output_list, link) {
+        create_shell_output(shell, output);
+    }
 
 	shell->output_create_listener.notify = handle_output_create;
 	wl_signal_add(&ec->output_created_signal,
@@ -5180,7 +5194,7 @@ shell_destroy(struct wl_listener *listener, void *data)
 	struct desktop_shell *shell =
 		container_of(listener, struct desktop_shell, destroy_listener);
 	struct workspace **ws;
-	struct shell_output *shell_output, *tmp;
+//	struct shell_output *shell_output, *tmp;
 	struct shell_seat *shseat, *shseat_next;
 
 	/* Force state to unlocked so we don't try to fade */
@@ -5200,8 +5214,12 @@ shell_destroy(struct wl_listener *listener, void *data)
 	text_backend_destroy(shell->text_backend);
 	input_panel_destroy(shell);
 
-	wl_list_for_each_safe(shell_output, tmp, &shell->output_list, link)
-		shell_output_destroy(shell_output);
+//	wl_list_for_each_safe(shell_output, tmp, &shell->output_list, link)
+//		shell_output_destroy(shell_output);
+    for (auto& shell_output: shell->output_list) {
+        fprintf(stderr, " [DEBUG] shell_destroy() - loop. shell_output: %p\n", shell_output);
+        shell_output_destroy(shell_output);
+    }
 
 	wl_list_remove(&shell->output_create_listener.link);
 	wl_list_remove(&shell->output_move_listener.link);
@@ -5418,7 +5436,7 @@ int wet_shell_init(struct weston_compositor *ec,
 				  WESTON_LAYER_POSITION_BACKGROUND);
 
     // wl_array_init(&shell->workspaces.array);
-	wl_list_init(&shell->workspaces.client_list);
+    // wl_list_init(&shell->workspaces.client_list);
 	wl_list_init(&shell->seat_list);
 
 	if (input_panel_setup(shell) < 0)

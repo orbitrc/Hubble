@@ -122,8 +122,7 @@ show_input_panels(struct wl_listener *listener, void *data)
 {
 	struct desktop_shell *shell =
 		container_of(listener, struct desktop_shell,
-			     show_input_panel_listener);
-	struct input_panel_surface *ipsurf, *next;
+                 show_input_panel_listener);
 
 	shell->text_input.surface = (struct weston_surface*)data;
 
@@ -136,13 +135,13 @@ show_input_panels(struct wl_listener *listener, void *data)
 		weston_layer_set_position(&shell->input_panel_layer,
 					  WESTON_LAYER_POSITION_TOP_UI);
 
-	wl_list_for_each_safe(ipsurf, next,
-			      &shell->input_panel.surfaces, link) {
-		if (ipsurf->surface->width == 0)
-			continue;
+    for (auto& input_surface: shell->input_panel.surfaces) {
+        if (input_surface->surface->width == 0) {
+            continue;
+        }
 
-		show_input_panel_surface(ipsurf);
-	}
+        show_input_panel_surface(input_surface);
+    }
 }
 
 static void
@@ -281,8 +280,9 @@ input_panel_surface_set_toplevel(struct wl_client *client,
 	struct desktop_shell *shell = input_panel_surface->shell;
 	struct weston_head *head;
 
-	wl_list_insert(&shell->input_panel.surfaces,
-		       &input_panel_surface->link);
+//	wl_list_insert(&shell->input_panel.surfaces,
+//		       &input_panel_surface->link);
+    shell->input_panel.surfaces.push(input_panel_surface);
 
 	head = weston_head_from_resource(output_resource);
 	input_panel_surface->output = head->output;
@@ -297,8 +297,11 @@ input_panel_surface_set_overlay_panel(struct wl_client *client,
         static_cast<struct input_panel_surface*>(wl_resource_get_user_data(resource));
 	struct desktop_shell *shell = input_panel_surface->shell;
 
-	wl_list_insert(&shell->input_panel.surfaces,
-		       &input_panel_surface->link);
+    /*
+    wl_list_insert(&shell->input_panel.surfaces,
+        &input_panel_surface->link);
+    */
+    shell->input_panel.surfaces.push(input_panel_surface);
 
 	input_panel_surface->panel = 1;
 }
@@ -412,7 +415,7 @@ input_panel_setup(struct desktop_shell *shell)
 	wl_signal_add(&ec->update_input_panel_signal,
 		      &shell->update_input_panel_listener);
 
-	wl_list_init(&shell->input_panel.surfaces);
+//    wl_list_init(&shell->input_panel.surfaces);
 
 	if (wl_global_create(shell->compositor->wl_display,
 			     &zwp_input_panel_v1_interface, 1,
