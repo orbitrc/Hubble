@@ -34,12 +34,11 @@
 
 #include <wayland-protocols/weston/weston-desktop-shell-server-protocol.h>
 
-enum animation_type {
-	ANIMATION_NONE,
-
-	ANIMATION_ZOOM,
-	ANIMATION_FADE,
-	ANIMATION_DIM_LAYER,
+enum class AnimationType {
+    None,
+    Zoom,
+    Fade,
+    DimLayer,
 };
 
 enum class FadeType {
@@ -70,6 +69,9 @@ struct exposay_output {
 namespace hb {
 class Workspace;
 } // namespace hb
+
+struct weston_desktop;
+struct text_backend;
 
 struct exposay {
 	/* XXX: Make these exposay_surfaces. */
@@ -282,28 +284,75 @@ public:
     };
 
 public:
-    DesktopShell();
+    DesktopShell(struct weston_compositor *compositor);
     ~DesktopShell();
 
+    struct weston_compositor* compositor();
+
+    static DesktopShell* instance();
+
 public:
+    //=====================
+    // Wayland Listeners
+    //=====================
+    struct wl_listener idle_listener;
+    struct wl_listener wake_listener;
+    struct wl_listener transform_listener;
+    struct wl_listener resized_listener;
+    struct wl_listener destroy_listener;
+    struct wl_listener show_input_panel_listener;
+    struct wl_listener hide_input_panel_listener;
+    struct wl_listener update_input_panel_listener;
+
+    struct wl_listener pointer_focus_listener;
+
+    struct wl_listener lock_surface_listener;
 
 private:
+    struct weston_compositor *_compositor;
+    struct weston_desktop *_desktop;
+    const struct weston_xwayland_surface_api *_xwayland_surface_api;
 
+    struct weston_layer _fullscreen_layer;
+    struct weston_layer _panel_layer;
+    struct weston_layer _background_layer;
+    struct weston_layer _lock_layer;
+    struct weston_layer _input_panel_layer;
+
+    struct weston_surface *_grab_surface;
+
+    bool _locked;
+    bool _showing_input_panels;
+    bool _prepare_event_sent;
+
+    struct text_backend *_text_backend;
+
+    struct weston_surface *_lock_surface;
+
+public:
+    hb::DesktopShell::Child child;
+    hb::DesktopShell::TextInput text_input;
+    hb::DesktopShell::Workspaces workspaces;
+    hb::DesktopShell::InputPanel input_panel;
+
+    struct exposay exposay;
 };
+
+// Singleton object.
+extern DesktopShell *desktop_shell_singleton;
 
 } // namespace hb
 
 
-
 struct shell_output {
-	struct desktop_shell  *shell;
-	struct weston_output  *output;
+    struct desktop_shell  *shell;
+    struct weston_output  *output;
 	struct exposay_output eoutput;
-	struct wl_listener    destroy_listener;
+    struct wl_listener    destroy_listener;
     struct wl_list        link;
 
 	struct weston_surface *panel_surface;
-	struct wl_listener panel_surface_listener;
+    struct wl_listener panel_surface_listener;
 
 	struct weston_surface *background_surface;
 	struct wl_listener background_surface_listener;
@@ -311,30 +360,28 @@ struct shell_output {
     hb::ShellOutput::Fade fade;
 };
 
-struct weston_desktop;
-
 struct desktop_shell {
-	struct weston_compositor *compositor;
-	struct weston_desktop *desktop;
-	const struct weston_xwayland_surface_api *xwayland_surface_api;
+    struct weston_compositor *compositor; //
+    struct weston_desktop *desktop; //
+    const struct weston_xwayland_surface_api *xwayland_surface_api; //
 
-	struct wl_listener idle_listener;
-	struct wl_listener wake_listener;
-	struct wl_listener transform_listener;
-	struct wl_listener resized_listener;
-	struct wl_listener destroy_listener;
-	struct wl_listener show_input_panel_listener;
-	struct wl_listener hide_input_panel_listener;
-	struct wl_listener update_input_panel_listener;
+    struct wl_listener idle_listener; //
+    struct wl_listener wake_listener; //
+    struct wl_listener transform_listener; //
+    struct wl_listener resized_listener; //
+    struct wl_listener destroy_listener; //
+    struct wl_listener show_input_panel_listener; //
+    struct wl_listener hide_input_panel_listener; //
+    struct wl_listener update_input_panel_listener; //
 
-	struct weston_layer fullscreen_layer;
-	struct weston_layer panel_layer;
-	struct weston_layer background_layer;
-	struct weston_layer lock_layer;
-	struct weston_layer input_panel_layer;
+    struct weston_layer fullscreen_layer; //
+    struct weston_layer panel_layer; //
+    struct weston_layer background_layer; //
+    struct weston_layer lock_layer; //
+    struct weston_layer input_panel_layer; //
 
-	struct wl_listener pointer_focus_listener;
-	struct weston_surface *grab_surface;
+    struct wl_listener pointer_focus_listener; //
+    struct weston_surface *grab_surface; //
 
 	struct {
 		struct wl_client *client;
@@ -343,21 +390,21 @@ struct desktop_shell {
 
 		unsigned deathcount;
 		struct timespec deathstamp;
-	} child;
+    } child; //
 
-	bool locked;
-	bool showing_input_panels;
-	bool prepare_event_sent;
+    bool locked; //
+    bool showing_input_panels; //
+    bool prepare_event_sent; //
 
-	struct text_backend *text_backend;
+    struct text_backend *text_backend; //
 
 	struct {
 		struct weston_surface *surface;
 		pixman_box32_t cursor_rectangle;
-	} text_input;
+    } text_input; //
 
-	struct weston_surface *lock_surface;
-	struct wl_listener lock_surface_listener;
+    struct weston_surface *lock_surface; //
+    struct wl_listener lock_surface_listener; //
 
 	struct {
 //		struct wl_array array;
@@ -374,19 +421,19 @@ struct desktop_shell {
 		double anim_current;
         hb::Workspace *anim_from;
         hb::Workspace *anim_to;
-	} workspaces;
+    } workspaces; //
 
-    hb::DesktopShell::InputPanel input_panel;
+    hb::DesktopShell::InputPanel input_panel; //
 
-	struct exposay exposay;
+    struct exposay exposay; //
 
 	bool allow_zap;
 	uint32_t binding_modifier;
 	uint32_t exposay_modifier;
-	enum animation_type win_animation_type;
-	enum animation_type win_close_animation_type;
-	enum animation_type startup_animation_type;
-	enum animation_type focus_animation_type;
+    AnimationType win_animation_type;
+    AnimationType win_close_animation_type;
+    AnimationType startup_animation_type;
+    AnimationType focus_animation_type;
 
 	struct weston_layer minimized_layer;
 
