@@ -185,9 +185,7 @@ struct shell_seat {
 
 	struct wl_listener caps_changed_listener;
 	struct wl_listener pointer_focus_listener;
-	struct wl_listener keyboard_focus_listener;
-
-	struct wl_list link;	/** shell::seat_list */
+    struct wl_listener keyboard_focus_listener;
 };
 
 #ifdef __cplusplus
@@ -2409,7 +2407,7 @@ desktop_shell_destroy_seat(struct shell_seat *shseat)
 	wl_list_remove(&shseat->pointer_focus_listener.link);
 	wl_list_remove(&shseat->seat_destroy_listener.link);
 
-	wl_list_remove(&shseat->link);
+//	wl_list_remove(&shseat->link);
 	free(shseat);
 }
 
@@ -2469,7 +2467,8 @@ create_shell_seat(struct desktop_shell *shell, struct weston_seat *seat)
 		      &shseat->caps_changed_listener);
 	shell_seat_caps_changed(&shseat->caps_changed_listener, NULL);
 
-	wl_list_insert(&shell->seat_list, &shseat->link);
+//    wl_list_insert(&shell->seat_list, &shseat->link);
+    shell->seat_list.push(shseat);
 
 	return shseat;
 }
@@ -5275,8 +5274,9 @@ shell_destroy(struct wl_listener *listener, void *data)
 	wl_list_remove(&shell->output_move_listener.link);
 	wl_list_remove(&shell->resized_listener.link);
 
-	wl_list_for_each_safe(shseat, shseat_next, &shell->seat_list, link)
-		desktop_shell_destroy_seat(shseat);
+    for (auto& shseat: shell->seat_list) {
+        desktop_shell_destroy_seat(shseat);
+    }
 
 	weston_desktop_destroy(shell->desktop);
 
@@ -5487,7 +5487,7 @@ int wet_shell_init(struct weston_compositor *ec,
 
     // wl_array_init(&shell->workspaces.array);
     // wl_list_init(&shell->workspaces.client_list);
-	wl_list_init(&shell->seat_list);
+//    wl_list_init(&shell->seat_list);
 
 	if (input_panel_setup(shell) < 0)
 		return -1;
@@ -5544,8 +5544,8 @@ int wet_shell_init(struct weston_compositor *ec,
 	loop = wl_display_get_event_loop(ec->wl_display);
 	wl_event_loop_add_idle(loop, launch_desktop_shell_process, shell);
 
-	wl_list_for_each(seat, &ec->seat_list, link)
-		create_shell_seat(shell, seat);
+    wl_list_for_each(seat, &ec->seat_list, link)
+        create_shell_seat(shell, seat);
 	shell->seat_create_listener.notify = handle_seat_created;
 	wl_signal_add(&ec->seat_created_signal, &shell->seat_create_listener);
 

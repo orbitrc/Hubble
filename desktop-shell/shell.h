@@ -72,6 +72,7 @@ class Workspace;
 
 struct weston_desktop;
 struct text_backend;
+struct shell_seat;
 
 struct exposay {
 	/* XXX: Make these exposay_surfaces. */
@@ -308,6 +309,10 @@ public:
 
     struct wl_listener lock_surface_listener;
 
+    struct wl_listener seat_create_listener;
+    struct wl_listener output_create_listener;
+    struct wl_listener output_move_listener;
+
 private:
     struct weston_compositor *_compositor;
     struct weston_desktop *_desktop;
@@ -328,6 +333,18 @@ private:
     struct text_backend *_text_backend;
 
     struct weston_surface *_lock_surface;
+
+    bool _allow_zap;
+    uint32_t _binding_modifier;
+    uint32_t _exposay_modifier;
+    AnimationType _win_animation_type;
+    AnimationType _win_close_animation_type;
+    AnimationType _startup_animation_type;
+    AnimationType _focus_animation_type;
+
+    struct weston_layer _minimized_layer;
+
+    pr::Vector<struct shell_output*> _output_list;
 
 public:
     hb::DesktopShell::Child child;
@@ -384,9 +401,9 @@ struct desktop_shell {
     struct weston_surface *grab_surface; //
 
 	struct {
-		struct wl_client *client;
-		struct wl_resource *desktop_shell;
-		struct wl_listener client_destroy_listener;
+        struct wl_client *client;
+        struct wl_resource *desktop_shell;
+        struct wl_listener client_destroy_listener;
 
 		unsigned deathcount;
 		struct timespec deathstamp;
@@ -427,21 +444,21 @@ struct desktop_shell {
 
     struct exposay exposay; //
 
-	bool allow_zap;
-	uint32_t binding_modifier;
-	uint32_t exposay_modifier;
-    AnimationType win_animation_type;
-    AnimationType win_close_animation_type;
-    AnimationType startup_animation_type;
-    AnimationType focus_animation_type;
+    bool allow_zap; //
+    uint32_t binding_modifier; //
+    uint32_t exposay_modifier; //
+    AnimationType win_animation_type; //
+    AnimationType win_close_animation_type; //
+    AnimationType startup_animation_type; //
+    AnimationType focus_animation_type; //
 
-	struct weston_layer minimized_layer;
+    struct weston_layer minimized_layer; //
 
-	struct wl_listener seat_create_listener;
-	struct wl_listener output_create_listener;
-	struct wl_listener output_move_listener;
-    pr::Vector<struct shell_output*> output_list;
-	struct wl_list seat_list;
+    struct wl_listener seat_create_listener; //
+    struct wl_listener output_create_listener; //
+    struct wl_listener output_move_listener; //
+    pr::Vector<struct shell_output*> output_list; //
+    pr::Vector<struct shell_seat*> seat_list;
 
 	enum weston_desktop_shell_panel_position panel_position;
 
