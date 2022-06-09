@@ -77,11 +77,13 @@ enum class ClockFormat {
     None,
 };
 
-struct output;
+class Output;
 
 //=============
 // Desktop
 //=============
+
+class Desktop *desktop_singleton;
 
 class Desktop
 {
@@ -106,6 +108,8 @@ public:
         this->grab_cursor = CURSOR_BLANK;
 
         this->painted = 0;
+
+        desktop_singleton = this;
     }
 
     int is_painted() const;
@@ -114,13 +118,18 @@ public:
 
     void parse_clock_format(struct weston_config_section *s);
 
+    void remove_output(Output *output);
+
+    /// Get singleton instance.
+    static Desktop* instance();
+
 public:
     struct display *display;
     struct weston_desktop_shell *shell;
     struct unlock_dialog *unlock_dialog;
     struct task unlock_task;
 //    struct wl_list outputs;
-    pr::Vector<struct output*> outputs;
+    pr::Vector<Output*> outputs;
 
     int want_panel;
     enum weston_desktop_shell_panel_position panel_position;
@@ -148,7 +157,7 @@ struct surface {
 			  int32_t width, int32_t height);
 };
 
-struct output;
+class Output;
 
 //=========
 // Panel
@@ -157,7 +166,7 @@ struct output;
 struct panel {
 	struct surface base;
 
-	struct output *owner;
+    Output *owner;
 
 	struct window *window;
 	struct widget *widget;
@@ -169,6 +178,10 @@ struct panel {
 	uint32_t color;
 };
 
+static struct panel* panel_create(Desktop *desktop, Output *output);
+
+static void panel_destroy(struct panel *panel);
+
 //===============
 // Background
 //===============
@@ -176,7 +189,7 @@ struct panel {
 struct background {
 	struct surface base;
 
-	struct output *owner;
+    Output *owner;
 
 	struct window *window;
 	struct widget *widget;
@@ -187,19 +200,78 @@ struct background {
 	uint32_t color;
 };
 
+static struct background* background_create(Desktop *desktop, Output *output);
+
+static void background_destroy(struct background *background);
+
 //===============
 // Output
 //===============
 
-struct output {
-    struct wl_output *output;
-    uint32_t server_output_id;
-    struct wl_list link;
+static void output_handle_geometry(void *data,
+        struct wl_output *wl_output,
+        int x, int y,
+        int physical_width,
+        int physical_height,
+        int subpixel,
+        const char *make,
+        const char *model,
+        int transform);
 
-    int x;
-    int y;
-    struct panel *panel;
-    struct background *background;
+static void output_handle_mode(void *data,
+        struct wl_output *wl_output,
+        uint32_t flags,
+        int width,
+        int height,
+        int refresh);
+
+static void output_handle_done(void *data,
+        struct wl_output *wl_output);
+
+static void output_handle_scale(void *data,
+        struct wl_output *wl_output,
+        int32_t scale);
+
+static const struct wl_output_listener output_listener = {
+    output_handle_geometry,
+    output_handle_mode,
+    output_handle_done,
+    output_handle_scale
+};
+
+class Output
+{
+public:
+    Output(uint32_t server_output_id);
+    ~Output();
+
+    void init();
+
+    uint32_t server_output_id() const;
+
+    int x() const;
+
+    void set_x(int x);
+
+    int y() const;
+
+    void set_y(int y);
+
+    struct panel* panel();
+
+    void set_panel(struct panel *panel);
+
+    struct background* background();
+
+    void set_background(struct background *background);
+
+private:
+    struct wl_output *_wl_output;
+    uint32_t _server_output_id;
+    int _x;
+    int _y;
+    struct panel *_panel;
+    struct background *_background;
 };
 
 struct panel_launcher {
@@ -237,10 +309,10 @@ struct unlock_dialog {
 int Desktop::is_painted() const
 {
     for (const auto& output: this->outputs) {
-        if (output->panel && !output->panel->painted) {
+        if (output->panel() && !output->panel()->painted) {
             return 0;
         }
-        if (output->background && !output->background->painted) {
+        if (output->background() && !output->background()->painted) {
             return 0;
         }
     }
@@ -293,6 +365,171 @@ void Desktop::parse_clock_format(struct weston_config_section *s)
     else
         this->clock_format = ClockFormat::Iso;
     free(clock_format);
+}
+
+void Desktop::remove_output(Output *output)
+{
+    Output *rep = NULL;
+
+    if (!output->background()) {
+        delete output;
+        return;
+    }
+
+    // Find a wl_output that is a clone of the removed wl_output.
+    // We don't want to leave the clone without a background or panel.
+    for (auto& cur: this->outputs) {
+        if (cur == output) {
+            continue;
+        }
+
+        // XXX: Assumes size matches.
+        if (cur->x() == output->x() && cur->y() == output->y()) {
+            rep = cur;
+            break;
+        }
+    }
+
+    if (rep) {
+        /* If found and it does not already have a background or panel,
+         * hand over the background and panel so they don't get
+         * destroyed.
+         *
+         * We never create multiple backgrounds or panels for clones,
+         * but if the compositor moves outputs, a pair of wl_outputs
+         * might become "clones". This may happen temporarily when
+         * an output is about to be removed and the rest are reflowed.
+         * In this case it is correct to let the background/panel be
+         * destroyed.
+         */
+
+        if (!rep->background()) {
+            rep->set_background(output->background());
+            output->set_background(nullptr);
+            rep->background()->owner = rep;
+        }
+
+        if (!rep->panel()) {
+            rep->set_panel(output->panel());
+            output->set_panel(nullptr);
+            if (rep->panel()) {
+                rep->panel()->owner = rep;
+            }
+        }
+    }
+
+    delete output;
+}
+
+Desktop* Desktop::instance()
+{
+    return desktop_singleton;
+}
+
+//==================
+// Output Methods
+//==================
+Output::Output(uint32_t server_output_id)
+{
+    Desktop *desktop = Desktop::instance();
+
+    this->_wl_output = static_cast<struct wl_output*>(
+        display_bind(desktop->display, server_output_id, &wl_output_interface, 2));
+    this->_server_output_id = server_output_id;
+
+    this->_panel = nullptr;
+    this->_background = nullptr;
+
+    wl_output_add_listener(this->_wl_output,
+        &output_listener,
+        static_cast<void*>(this));
+
+    desktop->outputs.push(this);
+
+    /* On start up we may process an output global before the shell global
+     * in which case we can't create the panel and background just yet */
+    if (desktop->shell) {
+//        output_init(output, desktop);
+        this->init();
+    }
+}
+
+Output::~Output()
+{
+    if (this->_background) {
+        background_destroy(this->_background);
+    }
+    if (this->_panel) {
+        panel_destroy(this->_panel);
+    }
+    wl_output_destroy(this->_wl_output);
+}
+
+void Output::init()
+{
+    struct wl_surface *surface;
+    Desktop *desktop = Desktop::instance();
+
+    if (desktop->want_panel) {
+        this->_panel = panel_create(desktop, this);
+        surface = window_get_wl_surface(this->_panel->window);
+        weston_desktop_shell_set_panel(desktop->shell,
+            this->_wl_output, surface);
+    }
+
+    this->_background = background_create(desktop, this);
+    surface = window_get_wl_surface(this->_background->window);
+    weston_desktop_shell_set_background(desktop->shell,
+        this->_wl_output, surface);
+}
+
+uint32_t Output::server_output_id() const
+{
+    return this->_server_output_id;
+}
+
+int Output::x() const
+{
+    return this->_x;
+}
+
+void Output::set_x(int x)
+{
+    if (this->_x != x) {
+        this->_x = x;
+    }
+}
+
+int Output::y() const
+{
+    return this->_y;
+}
+
+void Output::set_y(int y)
+{
+    if (this->_y != y) {
+        this->_y = y;
+    }
+}
+
+struct panel* Output::panel()
+{
+    return this->_panel;
+}
+
+void Output::set_panel(struct panel *panel)
+{
+    this->_panel = panel;
+}
+
+struct background* Output::background()
+{
+    return this->_background;
+}
+
+void Output::set_background(struct background *background)
+{
+    this->_background = background;
 }
 
 
@@ -679,13 +916,13 @@ static void panel_configure(void *data,
     Desktop *desktop = static_cast<Desktop*>(data);
 	struct surface *surface = (struct surface*)window_get_user_data(window);
 	struct panel *panel = container_of(surface, struct panel, base);
-	struct output *owner;
+    Output *owner;
 
 	if (width < 1 || height < 1) {
 		/* Shell plugin configures 0x0 for redundant panel. */
 		owner = panel->owner;
-		panel_destroy(panel);
-		owner->panel = NULL;
+        panel_destroy(panel);
+        owner->set_panel(nullptr);
 		return;
 	}
 
@@ -749,7 +986,7 @@ panel_destroy(struct panel *panel)
 	free(panel);
 }
 
-static struct panel* panel_create(Desktop *desktop, struct output *output)
+static struct panel* panel_create(Desktop *desktop, Output *output)
 {
 	struct panel *panel;
 	struct weston_config_section *s;
@@ -1000,15 +1237,15 @@ static void background_configure(void *data,
     (void)data;
     (void)desktop_shell;
     (void)edges;
-	struct output *owner;
+    Output *owner;
 	struct background *background =
 		(struct background *) window_get_user_data(window);
 
 	if (width < 1 || height < 1) {
 		/* Shell plugin configures 0x0 for redundant background. */
 		owner = background->owner;
-		background_destroy(background);
-		owner->background = NULL;
+        background_destroy(background);
+        owner->set_background(nullptr);
 		return;
 	}
 
@@ -1305,7 +1542,7 @@ background_destroy(struct background *background)
 }
 
 static struct background* background_create(Desktop *desktop,
-        struct output *output)
+        Output *output)
 {
 	struct background *background;
 	struct weston_config_section *s;
@@ -1386,23 +1623,10 @@ static void grab_surface_create(Desktop *desktop)
 				 grab_surface_enter_handler);
 }
 
-static void
-output_destroy(struct output *output)
-{
-	if (output->background)
-		background_destroy(output->background);
-	if (output->panel)
-		panel_destroy(output->panel);
-	wl_output_destroy(output->output);
-	wl_list_remove(&output->link);
-
-	free(output);
-}
-
 static void desktop_destroy_outputs(Desktop *desktop)
 {
     for (auto& output: desktop->outputs) {
-        output_destroy(output);
+        delete output;
     }
 }
 
@@ -1422,15 +1646,17 @@ static void output_handle_geometry(void *data,
     (void)subpixel;
     (void)make;
     (void)model;
-	struct output *output = static_cast<struct output*>(data);
+    Output *output = static_cast<Output*>(data);
 
-	output->x = x;
-	output->y = y;
+    output->set_x(x);
+    output->set_y(y);
 
-	if (output->panel)
-		window_set_buffer_transform(output->panel->window, (enum wl_output_transform)transform);
-	if (output->background)
-		window_set_buffer_transform(output->background->window, (enum wl_output_transform)transform);
+    if (output->panel()) {
+        window_set_buffer_transform(output->panel()->window, (enum wl_output_transform)transform);
+    }
+    if (output->background()) {
+        window_set_buffer_transform(output->background()->window, (enum wl_output_transform)transform);
+    }
 }
 
 static void output_handle_mode(void *data,
@@ -1460,112 +1686,14 @@ static void output_handle_scale(void *data,
         int32_t scale)
 {
     (void)wl_output;
-    struct output *output = static_cast<struct output*>(data);
+    Output *output = static_cast<Output*>(data);
 
-	if (output->panel)
-		window_set_buffer_scale(output->panel->window, scale);
-	if (output->background)
-		window_set_buffer_scale(output->background->window, scale);
-}
-
-static const struct wl_output_listener output_listener = {
-	output_handle_geometry,
-	output_handle_mode,
-	output_handle_done,
-	output_handle_scale
-};
-
-static void output_init(struct output *output, Desktop *desktop)
-{
-	struct wl_surface *surface;
-
-	if (desktop->want_panel) {
-		output->panel = panel_create(desktop, output);
-		surface = window_get_wl_surface(output->panel->window);
-		weston_desktop_shell_set_panel(desktop->shell,
-					       output->output, surface);
-	}
-
-	output->background = background_create(desktop, output);
-	surface = window_get_wl_surface(output->background->window);
-	weston_desktop_shell_set_background(desktop->shell,
-					    output->output, surface);
-}
-
-static void create_output(Desktop *desktop, uint32_t id)
-{
-	struct output *output;
-
-    output = static_cast<struct output*>(zalloc(sizeof *output));
-    if (!output) {
-        return;
+    if (output->panel()) {
+        window_set_buffer_scale(output->panel()->window, scale);
     }
-
-	output->output =
-        static_cast<struct wl_output*>(display_bind(desktop->display, id, &wl_output_interface, 2));
-	output->server_output_id = id;
-
-	wl_output_add_listener(output->output, &output_listener, output);
-
-    desktop->outputs.push(output);
-
-	/* On start up we may process an output global before the shell global
-	 * in which case we can't create the panel and background just yet */
-	if (desktop->shell)
-		output_init(output, desktop);
-}
-
-static void output_remove(Desktop *desktop, struct output *output)
-{
-	struct output *rep = NULL;
-
-	if (!output->background) {
-		output_destroy(output);
-		return;
-	}
-
-    // Find a wl_output that is a clone of the removed wl_output.
-    // We don't want to leave the clone without a background or panel.
-    for (auto& cur: desktop->outputs) {
-        if (cur == output) {
-            continue;
-        }
-
-        // XXX: Assumes size matches.
-        if (cur->x == output->x && cur->y == output->y) {
-            rep = cur;
-            break;
-        }
+    if (output->background()) {
+        window_set_buffer_scale(output->background()->window, scale);
     }
-
-	if (rep) {
-		/* If found and it does not already have a background or panel,
-		 * hand over the background and panel so they don't get
-		 * destroyed.
-		 *
-		 * We never create multiple backgrounds or panels for clones,
-		 * but if the compositor moves outputs, a pair of wl_outputs
-		 * might become "clones". This may happen temporarily when
-		 * an output is about to be removed and the rest are reflowed.
-		 * In this case it is correct to let the background/panel be
-		 * destroyed.
-		 */
-
-		if (!rep->background) {
-			rep->background = output->background;
-			output->background = NULL;
-			rep->background->owner = rep;
-		}
-
-		if (!rep->panel) {
-			rep->panel = output->panel;
-			output->panel = NULL;
-			if (rep->panel)
-				rep->panel->owner = rep;
-		}
-	}
-
-	output_destroy(output);
 }
 
 static void global_handler(struct display *display, uint32_t id,
@@ -1583,10 +1711,10 @@ static void global_handler(struct display *display, uint32_t id,
                 1)
         );
         weston_desktop_shell_add_listener(desktop->shell,
-						  &listener,
-						  desktop);
+            &listener,
+            desktop);
     } else if (!strcmp(interface, "wl_output")) {
-        create_output(desktop, id);
+        new Output(id);
     }
 }
 
@@ -1597,14 +1725,14 @@ static void global_handler_remove(struct display *display, uint32_t id,
     (void)version;
     Desktop *desktop = static_cast<Desktop*>(data);
 
-	if (!strcmp(interface, "wl_output")) {
+    if (!strcmp(interface, "wl_output")) {
         for (auto& output: desktop->outputs) {
-            if (output->server_output_id == id) {
-                output_remove(desktop, output);
+            if (output->server_output_id() == id) {
+                desktop->remove_output(output);
                 break;
             }
         }
-	}
+    }
 }
 
 static void panel_add_launchers(struct panel *panel, Desktop *desktop)
@@ -1651,7 +1779,6 @@ int main(int argc, char *argv[])
     Desktop desktop;
 //    memset(&desktop, 0, sizeof(struct desktop));
 
-	struct output *output;
 	struct weston_config_section *s;
 	const char *config_file;
 
@@ -1686,8 +1813,8 @@ int main(int argc, char *argv[])
     }
 
     for (auto& output: desktop.outputs) {
-        if (!output->panel) {
-            output_init(output, &desktop);
+        if (!output->panel()) {
+            output->init();
         }
     }
 

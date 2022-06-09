@@ -4624,6 +4624,8 @@ check_desktop_shell_crash_too_early(struct desktop_shell *shell)
 	if (now.tv_sec - shell->startup_time.tv_sec < 30) {
 		weston_log("Error: %s apparently cannot run at all.\n",
 			   shell->client);
+		weston_log(" - Detail: now.tv_sec: %d, shell->startup_time.tv_sec: %d",
+			now.tv_sec, shell->startup_time.tv_sec);
 		weston_log_continue(STAMP_SPACE "Quitting...");
 		weston_compositor_exit_with_code(shell->compositor,
 						 EXIT_FAILURE);
