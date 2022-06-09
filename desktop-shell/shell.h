@@ -30,6 +30,7 @@
 #include <libweston/libweston.h>
 #include <libweston/xwayland-api.h>
 
+#include <primer/string.h>
 #include <primer/vector.h>
 
 #include <wayland-protocols/weston/weston-desktop-shell-server-protocol.h>
@@ -72,6 +73,7 @@ class Workspace;
 
 struct weston_desktop;
 struct text_backend;
+struct shell_output;
 struct shell_seat;
 
 struct exposay {
@@ -345,6 +347,13 @@ private:
     struct weston_layer _minimized_layer;
 
     pr::Vector<struct shell_output*> _output_list;
+    pr::Vector<struct shell_seat*> _seat_list;
+
+    enum weston_desktop_shell_panel_position _panel_position;
+
+    pr::String _client;
+
+    struct timespec _startup_time;
 
 public:
     hb::DesktopShell::Child child;
@@ -458,11 +467,11 @@ struct desktop_shell {
     struct wl_listener output_create_listener; //
     struct wl_listener output_move_listener; //
     pr::Vector<struct shell_output*> output_list; //
-    pr::Vector<struct shell_seat*> seat_list;
+    pr::Vector<struct shell_seat*> seat_list; //
 
-	enum weston_desktop_shell_panel_position panel_position;
+    enum weston_desktop_shell_panel_position panel_position; //
 
-	char *client;
+    char *client; //
 
 	struct timespec startup_time;
 };
