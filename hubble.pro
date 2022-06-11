@@ -12,6 +12,7 @@ SOURCES += clients/desktop-shell.cpp \
     desktop-shell/shell.cpp \
     desktop-shell/exposay.cpp \
     desktop-shell/input-panel.cpp \
+    compositor/main.c \
     libweston/base.cpp
 
 HEADERS += \
@@ -22,4 +23,6 @@ HEADERS += \
     shared/timespec-util.h \
     shared/xalloc.h \
     desktop-shell/shell.h \
+    compositor/cms-helper.h \
+    compositor/weston.h \
     include/libweston/libweston.h
