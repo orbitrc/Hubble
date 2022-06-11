@@ -39,7 +39,7 @@
 
 #include "shared/helpers.h"
 #include "weston-test-fixture-compositor.h"
-#include "weston.h"
+#include "hubble.h"
 #include "test-config.h"
 
 static_assert(WET_MAIN_RET_MISSING_CAPS == RESULT_SKIP,

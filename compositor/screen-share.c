@@ -43,7 +43,7 @@
 #include <libweston/libweston.h>
 #include "backend.h"
 #include "libweston-internal.h"
-#include "weston.h"
+#include "hubble.h"
 #include "shared/helpers.h"
 #include "shared/os-compatibility.h"
 #include "shared/timespec-util.h"

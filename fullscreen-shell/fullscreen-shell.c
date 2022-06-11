@@ -34,7 +34,7 @@
 #include <assert.h>
 
 #include <libweston/libweston.h>
-#include "compositor/weston.h"
+#include "compositor/hubble.h"
 #include "fullscreen-shell-unstable-v1-server-protocol.h"
 #include "shared/helpers.h"
 

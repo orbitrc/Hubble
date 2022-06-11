@@ -24,5 +24,5 @@ HEADERS += \
     shared/xalloc.h \
     desktop-shell/shell.h \
     compositor/cms-helper.h \
-    compositor/weston.h \
+    compositor/hubble.h \
     include/libweston/libweston.h

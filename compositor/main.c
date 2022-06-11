@@ -46,14 +46,14 @@
 #include <sys/time.h>
 #include <linux/limits.h>
 
-#include "weston.h"
+#include "hubble.h"
 #include <libweston/libweston.h>
 #include "shared/os-compatibility.h"
 #include "shared/helpers.h"
 #include "shared/string-helpers.h"
 #include "git-version.h"
 #include <libweston/version.h>
-#include "weston.h"
+#include "hubble.h"
 
 #include <libweston/backend-drm.h>
 #include <libweston/backend-headless.h>
@@ -3269,6 +3269,8 @@ weston_log_subscribe_to_scopes(struct weston_log_context *log_ctx,
 WL_EXPORT int
 wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 {
+    fprintf(stderr, "== BEGIN wet_main() ==\n");
+
 	int ret = EXIT_FAILURE;
 	char *cmdline;
 	struct wl_display *display;

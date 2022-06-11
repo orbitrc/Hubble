@@ -29,7 +29,7 @@
 #include <linux/input.h>
 
 #include <libweston/libweston.h>
-#include "weston.h"
+#include "hubble.h"
 #include "weston-screenshooter-server-protocol.h"
 #include "shared/helpers.h"
 #include <libweston/weston-log.h>

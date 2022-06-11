@@ -34,7 +34,7 @@
 #include <time.h>
 
 #include <libweston/libweston.h>
-#include "weston.h"
+#include "hubble.h"
 #include "text-input-unstable-v1-server-protocol.h"
 #include "input-method-unstable-v1-server-protocol.h"
 #include "shared/helpers.h"

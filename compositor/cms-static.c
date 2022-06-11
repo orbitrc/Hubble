@@ -31,7 +31,7 @@
 #include <libweston/libweston.h>
 #include "cms-helper.h"
 #include "shared/helpers.h"
-#include "weston.h"
+#include "hubble.h"
 
 struct cms_static {
 	struct weston_compositor	*ec;

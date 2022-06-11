@@ -39,9 +39,9 @@
 #include <libweston/weston-log.h>
 #include "backend.h"
 #include "libweston-internal.h"
-#include "compositor/weston.h"
+#include "compositor/hubble.h"
 #include "weston-test-server-protocol.h"
-#include "weston.h"
+#include "hubble.h"
 #include "weston-testsuite-data.h"
 
 #include "shared/helpers.h"

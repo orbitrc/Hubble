@@ -34,7 +34,7 @@
 #include <colord.h>
 
 #include <libweston/libweston.h>
-#include "weston.h"
+#include "hubble.h"
 #include "cms-helper.h"
 #include "shared/helpers.h"
 

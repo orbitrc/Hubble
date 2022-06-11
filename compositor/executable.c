@@ -25,7 +25,7 @@
 
 #include "config.h"
 
-#include "weston.h"
+#include "hubble.h"
 
 int
 main(int argc, char *argv[])

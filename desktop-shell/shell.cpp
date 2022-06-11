@@ -37,7 +37,7 @@
 #include <sys/types.h>
 
 #include "shell.h"
-#include "compositor/weston.h"
+#include "compositor/hubble.h"
 #include <libweston/config-parser.h>
 #include "shared/helpers.h"
 #include "shared/shell-utils.h"

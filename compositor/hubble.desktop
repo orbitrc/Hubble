@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=Hubble
+Comment=A Desktopd compatible Wayland compositor
+Exec=weston
+Type=Application

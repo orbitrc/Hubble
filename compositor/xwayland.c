@@ -32,7 +32,7 @@
 #include <sys/socket.h>
 
 #include <libweston/libweston.h>
-#include "compositor/weston.h"
+#include "compositor/hubble.h"
 #include <libweston/xwayland-api.h>
 #include "shared/helpers.h"
 

@@ -29,7 +29,7 @@
 #include <assert.h>
 
 #include <libweston/libweston.h>
-#include "compositor/weston.h"
+#include "compositor/hubble.h"
 #include "weston-test-runner.h"
 #include "weston-test-fixture-compositor.h"
 

@@ -28,7 +28,7 @@
 #include <assert.h>
 
 #include <libweston/libweston.h>
-#include "compositor/weston.h"
+#include "compositor/hubble.h"
 #include <libweston/plugin-registry.h>
 
 #include "weston-test-runner.h"

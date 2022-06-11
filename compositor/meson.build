@@ -49,7 +49,7 @@ exe_weston = executable(
 	install_rpath: dir_module_weston,
 	install: true
 )
-install_headers('weston.h', subdir: 'weston')
+install_headers('hubble.h', subdir: 'weston')
 
 pkgconfig.generate(
 	filebase: 'weston',
@@ -65,7 +65,7 @@ pkgconfig.generate(
 )
 
 install_data(
-	'weston.desktop',
+	'hubble.desktop',
 	install_dir: join_paths(dir_data, 'wayland-sessions')
 )
 
