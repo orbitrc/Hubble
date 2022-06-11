@@ -89,6 +89,44 @@ class Desktop *desktop_singleton;
 class Desktop
 {
 public:
+    //=========================
+    // Desktop Unlock Dialog
+    //=========================
+    class UnlockDialog
+    {
+    public:
+        UnlockDialog(Desktop *desktop);
+        ~UnlockDialog();
+
+        struct window* window();
+
+        struct widget* widget();
+
+        struct widget* button();
+
+        bool button_focused() const;
+
+        /// Set button_focused as true.
+        void focus_button();
+
+        /// Set button_focused as false.
+        void unfocus_button();
+
+        bool closing() const;
+
+        /// Set closing as true.
+        void mark_as_closing();
+
+    private:
+        struct window *_window;
+        struct widget *_widget;
+        struct widget *_button;
+        int _button_focused;
+        int _closing;
+        Desktop *_desktop;
+    };
+
+public:
     Desktop()
     {
         this->display = nullptr;
@@ -127,7 +165,7 @@ public:
 public:
     struct display *display;
     struct weston_desktop_shell *shell;
-    struct unlock_dialog *unlock_dialog;
+    Desktop::UnlockDialog *unlock_dialog;
     struct task unlock_task;
 //    struct wl_list outputs;
     pr::Vector<Output*> outputs;
@@ -152,20 +190,20 @@ public:
 //===========
 
 struct surface {
-	void (*configure)(void *data,
-			  struct weston_desktop_shell *desktop_shell,
-			  uint32_t edges, struct window *window,
-			  int32_t width, int32_t height);
+    void (*configure)(void *data,
+        struct weston_desktop_shell *desktop_shell,
+        uint32_t edges, struct window *window,
+        int32_t width, int32_t height);
 };
-
-//=========
-// Panel
-//=========
 
 static void panel_configure(void *data,
         struct weston_desktop_shell *desktop_shell,
         uint32_t edges, struct window *window,
         int32_t width, int32_t height);
+
+//=========
+// Panel
+//=========
 
 static void panel_redraw_handler(struct widget *widget, void *data);
 
@@ -175,6 +213,9 @@ static void panel_resize_handler(struct widget *widget,
 class Panel
 {
 public:
+    //==============
+    // Panel Clock
+    //==============
     class Clock
     {
         friend Panel;
@@ -246,8 +287,6 @@ private:
     ClockFormat _clock_format;
     uint32_t _color;
 };
-
-static void panel_destroy(struct panel *panel);
 
 static void clock_func(struct toytimer *tt);
 
@@ -364,24 +403,6 @@ struct panel_launcher {
 };
 
 static void panel_destroy_launcher(struct panel_launcher *launcher);
-
-//===============
-// Panel Clock
-//===============
-
-
-//==================
-// Unlock Dialog
-//==================
-
-struct unlock_dialog {
-	struct window *window;
-	struct widget *widget;
-	struct widget *button;
-	int button_focused;
-	int closing;
-    Desktop *desktop;
-};
 
 
 //=====================
@@ -1173,52 +1194,6 @@ static void panel_resize_handler(struct widget *widget,
     }
 }
 
-static void panel_configure(void *data,
-        struct weston_desktop_shell *desktop_shell,
-        uint32_t edges, struct window *window,
-        int32_t width, int32_t height)
-{
-    (void)desktop_shell;
-    (void)edges;
-    Desktop *desktop = static_cast<Desktop*>(data);
-	struct surface *surface = (struct surface*)window_get_user_data(window);
-    Panel *panel = container_of(surface, Panel, base);
-    Output *owner;
-
-	if (width < 1 || height < 1) {
-		/* Shell plugin configures 0x0 for redundant panel. */
-        owner = panel->owner();
-        delete panel;
-        owner->set_panel(nullptr);
-		return;
-	}
-
-	switch (desktop->panel_position) {
-	case WESTON_DESKTOP_SHELL_PANEL_POSITION_TOP:
-	case WESTON_DESKTOP_SHELL_PANEL_POSITION_BOTTOM:
-		height = 32;
-		break;
-	case WESTON_DESKTOP_SHELL_PANEL_POSITION_LEFT:
-	case WESTON_DESKTOP_SHELL_PANEL_POSITION_RIGHT:
-		switch (desktop->clock_format) {
-        case ClockFormat::Iso:
-        case ClockFormat::None:
-			width = 32;
-			break;
-        case ClockFormat::Minutes:
-        case ClockFormat::Minutes24h:
-        case ClockFormat::Seconds24h:
-			width = 150;
-			break;
-        case ClockFormat::Seconds:
-			width = 170;
-			break;
-		}
-		break;
-	}
-    window_schedule_resize(panel->window(), width, height);
-}
-
 static void
 panel_destroy_launcher(struct panel_launcher *launcher)
 {
@@ -1447,6 +1422,56 @@ static void background_draw(struct widget *widget, void *data)
 static void
 background_destroy(struct background *background);
 
+//========================================
+// Struct Surface Configure Functions
+//========================================
+
+static void panel_configure(void *data,
+        struct weston_desktop_shell *desktop_shell,
+        uint32_t edges, struct window *window,
+        int32_t width, int32_t height)
+{
+    (void)desktop_shell;
+    (void)edges;
+    Desktop *desktop = static_cast<Desktop*>(data);
+    struct surface *surface = (struct surface*)window_get_user_data(window);
+    Panel *panel = container_of(surface, Panel, base);
+    Output *owner;
+
+    if (width < 1 || height < 1) {
+        /* Shell plugin configures 0x0 for redundant panel. */
+        owner = panel->owner();
+        delete panel;
+        owner->set_panel(nullptr);
+        return;
+    }
+
+    switch (desktop->panel_position) {
+    case WESTON_DESKTOP_SHELL_PANEL_POSITION_TOP:
+    case WESTON_DESKTOP_SHELL_PANEL_POSITION_BOTTOM:
+        height = 32;
+        break;
+    case WESTON_DESKTOP_SHELL_PANEL_POSITION_LEFT:
+    case WESTON_DESKTOP_SHELL_PANEL_POSITION_RIGHT:
+        switch (desktop->clock_format) {
+        case ClockFormat::Iso:
+        case ClockFormat::None:
+            width = 32;
+            break;
+        case ClockFormat::Minutes:
+        case ClockFormat::Minutes24h:
+        case ClockFormat::Seconds24h:
+            width = 150;
+            break;
+        case ClockFormat::Seconds:
+            width = 170;
+            break;
+        }
+        break;
+    }
+    window_schedule_resize(panel->window(), width, height);
+}
+
 static void background_configure(void *data,
         struct weston_desktop_shell *desktop_shell,
         uint32_t edges, struct window *window,
@@ -1476,10 +1501,14 @@ static void background_configure(void *data,
 	widget_schedule_resize(background->widget, width, height);
 }
 
-static void
-unlock_dialog_redraw_handler(struct widget *widget, void *data)
+
+//=================================
+// Desktop Unlock Dialog Handlers
+//=================================
+
+static void unlock_dialog_redraw_handler(struct widget *widget, void *data)
 {
-	struct unlock_dialog *dialog = static_cast<struct unlock_dialog*>(data);
+    Desktop::UnlockDialog *dialog = static_cast<Desktop::UnlockDialog*>(data);
 	struct rectangle allocation;
 	cairo_surface_t *surface;
 	cairo_t *cr;
@@ -1488,7 +1517,7 @@ unlock_dialog_redraw_handler(struct widget *widget, void *data)
 
 	cr = widget_cairo_create(widget);
 
-	widget_get_allocation(dialog->widget, &allocation);
+    widget_get_allocation(dialog->widget(), &allocation);
 	cairo_rectangle(cr, allocation.x, allocation.y,
 			allocation.width, allocation.height);
 	cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
@@ -1496,10 +1525,11 @@ unlock_dialog_redraw_handler(struct widget *widget, void *data)
 	cairo_fill(cr);
 
 	cairo_translate(cr, allocation.x, allocation.y);
-	if (dialog->button_focused)
-		f = 1.0;
-	else
-		f = 0.7;
+    if (dialog->button_focused()) {
+        f = 1.0;
+    } else {
+        f = 0.7;
+    }
 
 	cx = allocation.width / 2.0;
 	cy = allocation.height / 2.0;
@@ -1513,14 +1543,14 @@ unlock_dialog_redraw_handler(struct widget *widget, void *data)
 	cairo_arc(cr, cx, cy, r, 0.0, 2.0 * M_PI);
 	cairo_fill(cr);
 
-	widget_set_allocation(dialog->button,
+    widget_set_allocation(dialog->button(),
 			      allocation.x + cx - r,
 			      allocation.y + cy - r, 2 * r, 2 * r);
 
 	cairo_destroy(cr);
 
-	surface = window_get_surface(dialog->window);
-	cairo_surface_destroy(surface);
+    surface = window_get_surface(dialog->window());
+    cairo_surface_destroy(surface);
 }
 
 static void unlock_dialog_button_handler(struct widget *widget,
@@ -1531,16 +1561,18 @@ static void unlock_dialog_button_handler(struct widget *widget,
     (void)widget;
     (void)input;
     (void)time;
-	struct unlock_dialog *dialog = static_cast<struct unlock_dialog*>(data);
-    Desktop *desktop = dialog->desktop;
+    Desktop::UnlockDialog *dialog = static_cast<Desktop::UnlockDialog*>(data);
+    Desktop *desktop = Desktop::instance();
 
-	if (button == BTN_LEFT) {
-		if (state == WL_POINTER_BUTTON_STATE_RELEASED &&
-		    !dialog->closing) {
-			display_defer(desktop->display, &desktop->unlock_task);
-			dialog->closing = 1;
-		}
-	}
+    assert(desktop != nullptr);
+
+    if (button == BTN_LEFT) {
+        if (state == WL_POINTER_BUTTON_STATE_RELEASED &&
+                !dialog->closing()) {
+            display_defer(desktop->display, &desktop->unlock_task);
+            dialog->mark_as_closing();
+        }
+    }
 }
 
 static void unlock_dialog_touch_down_handler(struct widget *widget,
@@ -1554,10 +1586,10 @@ static void unlock_dialog_touch_down_handler(struct widget *widget,
     (void)id;
     (void)x;
     (void)y;
-	struct unlock_dialog *dialog = static_cast<struct unlock_dialog*>(data);
+    Desktop::UnlockDialog *dialog = static_cast<Desktop::UnlockDialog*>(data);
 
-	dialog->button_focused = 1;
-	widget_schedule_redraw(widget);
+    dialog->focus_button();
+    widget_schedule_redraw(widget);
 }
 
 static void unlock_dialog_touch_up_handler(struct widget *widget,
@@ -1569,13 +1601,15 @@ static void unlock_dialog_touch_up_handler(struct widget *widget,
     (void)serial;
     (void)time;
     (void)id;
-    struct unlock_dialog *dialog = static_cast<struct unlock_dialog*>(data);
-    Desktop *desktop = dialog->desktop;
+    Desktop::UnlockDialog *dialog = static_cast<Desktop::UnlockDialog*>(data);
+    Desktop *desktop = Desktop::instance();
 
-	dialog->button_focused = 0;
+    assert(desktop != nullptr);
+
+    dialog->unfocus_button();
 	widget_schedule_redraw(widget);
 	display_defer(desktop->display, &desktop->unlock_task);
-	dialog->closing = 1;
+    dialog->mark_as_closing();
 }
 
 static void unlock_dialog_keyboard_focus_handler(struct window *window,
@@ -1593,78 +1627,121 @@ static int unlock_dialog_widget_enter_handler(struct widget *widget,
     (void)input;
     (void)x;
     (void)y;
-	struct unlock_dialog *dialog = static_cast<struct unlock_dialog*>(data);
+    Desktop::UnlockDialog *dialog = static_cast<Desktop::UnlockDialog*>(data);
 
-	dialog->button_focused = 1;
+    dialog->focus_button();
 	widget_schedule_redraw(widget);
 
 	return CURSOR_LEFT_PTR;
 }
 
-static void
-unlock_dialog_widget_leave_handler(struct widget *widget,
+static void unlock_dialog_widget_leave_handler(struct widget *widget,
         struct input *input, void *data)
 {
     (void)input;
-    struct unlock_dialog *dialog = static_cast<struct unlock_dialog*>(data);
+    Desktop::UnlockDialog *dialog = static_cast<Desktop::UnlockDialog*>(data);
 
-	dialog->button_focused = 0;
+    dialog->unfocus_button();
 	widget_schedule_redraw(widget);
 }
 
-static struct unlock_dialog* unlock_dialog_create(Desktop *desktop)
+//==================================
+// Desktop Unlock Dialog Methods
+//==================================
+Desktop::UnlockDialog::UnlockDialog(Desktop *desktop)
 {
-	struct display *display = desktop->display;
-	struct unlock_dialog *dialog;
-	struct wl_surface *surface;
+    struct display *display = desktop->display;
+    struct wl_surface *surface;
 
-	dialog = (struct unlock_dialog*)xzalloc(sizeof *dialog);
+    this->_desktop = desktop;
 
-	dialog->window = window_create_custom(display);
-	dialog->widget = window_frame_create(dialog->window, dialog);
-	window_set_title(dialog->window, "Unlock your desktop");
+    this->_window = window_create_custom(display);
+    this->_widget = window_frame_create(this->_window,
+        static_cast<void*>(this));
+    window_set_title(this->_window, "Unlock your desktop");
 
-	window_set_user_data(dialog->window, dialog);
-	window_set_keyboard_focus_handler(dialog->window,
-					  unlock_dialog_keyboard_focus_handler);
-	dialog->button = widget_add_widget(dialog->widget, dialog);
-	widget_set_redraw_handler(dialog->widget,
-				  unlock_dialog_redraw_handler);
-	widget_set_enter_handler(dialog->button,
-				 unlock_dialog_widget_enter_handler);
-	widget_set_leave_handler(dialog->button,
-				 unlock_dialog_widget_leave_handler);
-	widget_set_button_handler(dialog->button,
-				  unlock_dialog_button_handler);
-	widget_set_touch_down_handler(dialog->button,
-				      unlock_dialog_touch_down_handler);
-	widget_set_touch_up_handler(dialog->button,
-				      unlock_dialog_touch_up_handler);
+    // Set handlers.
+    window_set_user_data(this->_window, static_cast<void*>(this));
+    window_set_keyboard_focus_handler(this->_window,
+        unlock_dialog_keyboard_focus_handler);
+    this->_button = widget_add_widget(this->_widget,
+        static_cast<void*>(this));
+    widget_set_redraw_handler(this->_widget,
+        unlock_dialog_redraw_handler);
+    widget_set_enter_handler(this->_button,
+        unlock_dialog_widget_enter_handler);
+    widget_set_leave_handler(this->_button,
+        unlock_dialog_widget_leave_handler);
+    widget_set_button_handler(this->_button,
+        unlock_dialog_button_handler);
+    widget_set_touch_down_handler(this->_button,
+        unlock_dialog_touch_down_handler);
+    widget_set_touch_up_handler(this->_button,
+        unlock_dialog_touch_up_handler);
 
-	surface = window_get_wl_surface(dialog->window);
+    surface = window_get_wl_surface(this->_window);
 	weston_desktop_shell_set_lock_surface(desktop->shell, surface);
 
-	window_schedule_resize(dialog->window, 260, 230);
-
-	return dialog;
+    window_schedule_resize(this->_window, 260, 230);
 }
 
-static void
-unlock_dialog_destroy(struct unlock_dialog *dialog)
+Desktop::UnlockDialog::~UnlockDialog()
 {
-	window_destroy(dialog->window);
-	free(dialog);
+    window_destroy(this->_window);
 }
 
-static void
-unlock_dialog_finish(struct task *task, uint32_t events)
+struct window* Desktop::UnlockDialog::window()
 {
+    return this->_window;
+}
+
+struct widget* Desktop::UnlockDialog::widget()
+{
+    return this->_widget;
+}
+
+struct widget* Desktop::UnlockDialog::button()
+{
+    return this->_button;
+}
+
+bool Desktop::UnlockDialog::button_focused() const
+{
+    return this->_button_focused == 1;
+}
+
+void Desktop::UnlockDialog::focus_button()
+{
+    this->_button_focused = 1;
+}
+
+void Desktop::UnlockDialog::unfocus_button()
+{
+    this->_button_focused = 0;
+}
+
+bool Desktop::UnlockDialog::closing() const
+{
+    return this->_closing;
+}
+
+void Desktop::UnlockDialog::mark_as_closing()
+{
+    this->_closing = 1;
+}
+
+
+static void unlock_dialog_finish(struct task *task, uint32_t events)
+{
+    (void)task;
     (void)events;
-    Desktop *desktop = container_of(task, Desktop, unlock_task);
+    Desktop *desktop = Desktop::instance();
 
-	weston_desktop_shell_unlock(desktop->shell);
-	unlock_dialog_destroy(desktop->unlock_dialog);
-	desktop->unlock_dialog = NULL;
+    assert(desktop != nullptr);
+
+    weston_desktop_shell_unlock(desktop->shell);
+    delete desktop->unlock_dialog;
+    desktop->unlock_dialog = nullptr;
 }
 
 static void
@@ -1691,10 +1768,9 @@ static void desktop_shell_prepare_lock_surface(void *data,
 		return;
 	}
 
-	if (!desktop->unlock_dialog) {
-		desktop->unlock_dialog = unlock_dialog_create(desktop);
-		desktop->unlock_dialog->desktop = desktop;
-	}
+    if (!desktop->unlock_dialog) {
+        desktop->unlock_dialog = new Desktop::UnlockDialog(desktop);
+    }
 }
 
 static void desktop_shell_grab_cursor(void *data,
@@ -1810,6 +1886,10 @@ static struct background* background_create(Desktop *desktop,
 static int grab_surface_enter_handler(struct widget *widget,
         struct input *input, float x, float y, void *data)
 {
+    (void)widget;
+    (void)input;
+    (void)x;
+    (void)y;
     Desktop *desktop = static_cast<Desktop*>(data);
 
     return desktop->grab_cursor;
@@ -2004,13 +2084,15 @@ int main(int argc, char *argv[])
 
 	signal(SIGCHLD, sigchild_handler);
 
-	display_run(desktop.display);
+    display_run(desktop.display);
 
-	/* Cleanup */
+    // Cleanup.
+    fprintf(stderr, " [DEBUG] desktop-shell clean up...\n");
 	grab_surface_destroy(&desktop);
 	desktop_destroy_outputs(&desktop);
-	if (desktop.unlock_dialog)
-		unlock_dialog_destroy(desktop.unlock_dialog);
+    if (desktop.unlock_dialog != nullptr) {
+        delete desktop.unlock_dialog;
+    }
 	weston_desktop_shell_destroy(desktop.shell);
 	display_destroy(desktop.display);
 	weston_config_destroy(desktop.config);

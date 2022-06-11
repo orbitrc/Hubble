@@ -5133,22 +5133,27 @@ shell_reposition_view_on_output_change(struct weston_view *view)
 void shell_for_each_layer(struct desktop_shell *shell,
         shell_for_each_layer_func_t func, void *data)
 {
-	func(shell, &shell->fullscreen_layer, data);
-	func(shell, &shell->panel_layer, data);
-	func(shell, &shell->background_layer, data);
-	func(shell, &shell->lock_layer, data);
-	func(shell, &shell->input_panel_layer, data);
+    fprintf(stderr, " [DEBUG] BEGIN shell_for_each_layer() shell: %p\n", shell);
+
+    fprintf(stderr, "  - func. shell->fullscreen_layer.\n");
+    func(shell, &shell->fullscreen_layer, data);
+    fprintf(stderr, "  - func. shell->panel_layer.\n");
+    func(shell, &shell->panel_layer, data);
+    func(shell, &shell->background_layer, data);
+    func(shell, &shell->lock_layer, data);
+    func(shell, &shell->input_panel_layer, data);
 
     for (auto& ws: shell->workspaces.array) {
         auto layer = ws->layer();
         func(shell, layer, data);
     }
+
+    fprintf(stderr, " [DEBUG] END shell_for_each_layer()\n");
 }
 
-static void
-shell_output_changed_move_layer(struct desktop_shell *shell,
-				struct weston_layer *layer,
-				void *data)
+static void shell_output_changed_move_layer(struct desktop_shell *shell,
+        struct weston_layer *layer,
+        void *data)
 {
     (void)shell;
     (void)data;
@@ -5162,19 +5167,24 @@ shell_output_changed_move_layer(struct desktop_shell *shell,
 static void shell_output_destroy(struct shell_output *shell_output)
 {
     struct desktop_shell *shell = shell_output->shell;
+    fprintf(stderr, " [DEBUG] BEGIN shell_output_destroy() shell: %p\n", shell);
 
-	shell_for_each_layer(shell, shell_output_changed_move_layer, NULL);
+    fprintf(stderr, " - shell_for_each_layer.\n");
+    shell_for_each_layer(shell, shell_output_changed_move_layer, NULL);
 
+    fprintf(stderr, " - if. animation destroy.\n");
     if (shell_output->fade.animation()) {
         weston_view_animation_destroy(shell_output->fade.animation());
         shell_output->fade.set_animation(nullptr);
-	}
+    }
 
+    fprintf(stderr, " - if. face view surface destroy.\n");
     if (shell_output->fade.view()) {
-		/* destroys the view as well */
+        // destroys the view as well.
         weston_surface_destroy(shell_output->fade.view()->surface);
     }
 
+    fprintf(stderr, " - if. fade startup timer.\n");
     if (shell_output->fade.startup_timer) {
         wl_event_source_remove(shell_output->fade.startup_timer);
     }
@@ -5185,10 +5195,11 @@ static void shell_output_destroy(struct shell_output *shell_output)
     if (shell_output->background_surface) {
         wl_list_remove(&shell_output->background_surface_listener.link);
     }
-	wl_list_remove(&shell_output->destroy_listener.link);
+    wl_list_remove(&shell_output->destroy_listener.link);
     fprintf(stderr, " [DEBUG] shell_output_destroy() - before wl_list_remove\n");
 //    wl_list_remove(&shell_output->link); // this line occurs error.
-	free(shell_output);
+    free(shell_output);
+    fprintf(stderr, " [DEBUG] END shell_output_destroy()\n");
 }
 
 static void
@@ -5197,7 +5208,7 @@ handle_output_destroy(struct wl_listener *listener, void *data)
 	struct shell_output *shell_output =
 		container_of(listener, struct shell_output, destroy_listener);
 
-	shell_output_destroy(shell_output);
+    shell_output_destroy(shell_output);
 }
 
 static void
@@ -5237,7 +5248,7 @@ static void create_shell_output(struct desktop_shell *shell,
 		return;
 
 	shell_output->output = output;
-	shell_output->shell = shell;
+    shell_output->shell = shell;
 	shell_output->destroy_listener.notify = handle_output_destroy;
 	wl_signal_add(&output->destroy_signal,
 		      &shell_output->destroy_listener);
@@ -5333,8 +5344,7 @@ static void desktop_shell_destroy_views_on_layer(struct weston_layer *layer)
 	weston_layer_fini(layer);
 }
 
-static void
-shell_destroy(struct wl_listener *listener, void *data)
+static void shell_destroy(struct wl_listener *listener, void *data)
 {
     (void)data;
 	struct desktop_shell *shell =
@@ -5363,6 +5373,7 @@ shell_destroy(struct wl_listener *listener, void *data)
     for (auto& shell_output: shell->output_list) {
         fprintf(stderr, " [DEBUG] shell_destroy() - loop. shell_output: %p\n", shell_output);
         shell_output_destroy(shell_output);
+        fprintf(stderr, " [DEBUG] shell_destroy() - loop. shell destroyed.\n");
     }
 
 	wl_list_remove(&shell->output_create_listener.link);
