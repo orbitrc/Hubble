@@ -301,6 +301,7 @@ public:
 
     struct weston_compositor* compositor();
 
+    /// Get singleton instance.
     static DesktopShell* instance();
 
 public:
@@ -495,6 +496,10 @@ struct weston_view* get_default_view(struct weston_surface *surface);
 
 struct shell_surface* get_shell_surface(struct weston_surface *surface);
 
+//============================
+// Desktop Shell C Methods
+//============================
+
 hb::Workspace* get_current_workspace(struct desktop_shell *shell);
 
 void get_output_work_area(struct desktop_shell *shell,
@@ -507,10 +512,6 @@ void lower_fullscreen_layer(struct desktop_shell *shell,
 void activate(struct desktop_shell *shell, struct weston_view *view,
         struct weston_seat *seat, uint32_t flags);
 
-void exposay_binding(struct weston_keyboard *keyboard,
-        enum weston_keyboard_modifier modifier,
-        void *data);
-
 int input_panel_setup(struct desktop_shell *shell);
 
 void input_panel_destroy(struct desktop_shell *shell);
@@ -520,6 +521,11 @@ typedef void (*shell_for_each_layer_func_t)(struct desktop_shell *,
 
 void shell_for_each_layer(struct desktop_shell *shell,
         shell_for_each_layer_func_t func,
+        void *data);
+
+
+void exposay_binding(struct weston_keyboard *keyboard,
+        enum weston_keyboard_modifier modifier,
         void *data);
 
 struct weston_transform* view_get_transform(struct weston_view *view);

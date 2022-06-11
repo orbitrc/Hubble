@@ -192,30 +192,25 @@ struct shell_seat {
 extern "C" {
 #endif
 
-static struct desktop_shell *
-shell_surface_get_shell(struct shell_surface *shsurf);
+static struct desktop_shell* shell_surface_get_shell(struct shell_surface *shsurf);
 
-static void
-set_busy_cursor(struct shell_surface *shsurf, struct weston_pointer *pointer);
+static void set_busy_cursor(struct shell_surface *shsurf, struct weston_pointer *pointer);
 
-static void
-surface_rotate(struct shell_surface *surface, struct weston_pointer *pointer);
+static void surface_rotate(struct shell_surface *surface, struct weston_pointer *pointer);
 
-static void
-shell_fade_startup(struct desktop_shell *shell);
+static void shell_fade_startup(struct desktop_shell *shell);
 
 static void shell_fade(struct desktop_shell *shell, FadeType type);
 
-static struct shell_seat *
-get_shell_seat(struct weston_seat *seat);
+static struct shell_seat* get_shell_seat(struct weston_seat *seat);
 
-static void
-get_output_panel_size(struct desktop_shell *shell,
-		      struct weston_output *output,
-		      int *width, int *height);
+static void get_output_panel_size(struct desktop_shell *shell,
+        struct weston_output *output,
+        int *width, int *height);
 
-static void
-shell_surface_update_child_surface_layers(struct shell_surface *shsurf);
+static void shell_surface_update_child_surface_layers(
+        struct shell_surface *shsurf);
+
 
 static void
 destroy_shell_grab_shsurf(struct wl_listener *listener, void *data)
