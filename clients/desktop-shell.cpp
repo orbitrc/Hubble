@@ -176,6 +176,31 @@ static void panel_resize_handler(struct widget *widget,
 class Panel
 {
 public:
+    class Clock
+    {
+        friend Panel;
+    public:
+        ~Clock();
+
+        int timer_reset();
+
+        struct widget* widget();
+
+        Panel* panel();
+
+        struct toytimer& timer();
+
+        const pr::String& format_string() const;
+
+    private:
+        struct widget *_widget;
+        Panel *_panel;
+        struct toytimer _timer;
+        pr::String _format_string;
+        time_t _refresh_timer;
+    };
+
+public:
     Panel(Output *output);
     ~Panel();
 
@@ -193,7 +218,7 @@ public:
 
     pr::Vector<struct panel_launcher*>& launchers();
 
-    struct panel_clock* clock();
+    Panel::Clock* clock();
 
     int painted() const;
 
@@ -216,7 +241,7 @@ private:
     struct window *_window;
     struct widget *_widget;
     pr::Vector<struct panel_launcher*> _launchers;
-    struct panel_clock *_clock;
+    Panel::Clock *_clock;
     int _painted;
     enum weston_desktop_shell_panel_position _panel_position;
     ClockFormat _clock_format;
@@ -344,16 +369,6 @@ static void panel_destroy_launcher(struct panel_launcher *launcher);
 //===============
 // Panel Clock
 //===============
-
-struct panel_clock {
-	struct widget *widget;
-    Panel *panel;
-	struct toytimer timer;
-	char *format_string;
-	time_t refresh_timer;
-};
-
-static int clock_timer_reset(struct panel_clock *clock);
 
 static void panel_destroy_clock(struct panel_clock *clock);
 
@@ -609,6 +624,8 @@ Panel::Panel(Output *output)
     struct weston_config_section *s;
     Desktop *desktop = Desktop::instance();
 
+    this->_clock = nullptr;
+
     this->_owner = output;
     this->base.configure = panel_configure;
     this->_window = window_create_custom(desktop->display);
@@ -638,7 +655,8 @@ Panel::Panel(Output *output)
 Panel::~Panel()
 {
     if (this->_clock) {
-        panel_destroy_clock(this->_clock);
+        delete this->_clock;
+        this->_clock = nullptr;
     }
 
     for (auto& launcher: this->_launchers) {
@@ -651,43 +669,43 @@ Panel::~Panel()
 
 void Panel::add_clock()
 {
-    struct panel_clock *clock;
+    this->_clock = new Panel::Clock();
+    Panel::Clock *clock = this->_clock;
 
-    clock = (struct panel_clock*)xzalloc(sizeof *clock);
-    clock->panel = this;
+    clock->_panel = this;
     this->_clock = clock;
 
     switch (this->_clock_format) {
     case ClockFormat::Iso:
-        clock->format_string = "%Y-%m-%dT%H:%M:%S";
-        clock->refresh_timer = 1;
+        clock->_format_string = "%Y-%m-%dT%H:%M:%S";
+        clock->_refresh_timer = 1;
         break;
     case ClockFormat::Minutes:
-        clock->format_string = "%a %b %d, %I:%M %p";
-        clock->refresh_timer = 60;
+        clock->_format_string = "%a %b %d, %I:%M %p";
+        clock->_refresh_timer = 60;
         break;
     case ClockFormat::Seconds:
-        clock->format_string = "%a %b %d, %I:%M:%S %p";
-        clock->refresh_timer = 1;
+        clock->_format_string = "%a %b %d, %I:%M:%S %p";
+        clock->_refresh_timer = 1;
         break;
     case ClockFormat::Minutes24h:
-        clock->format_string = "%a %b %d, %H:%M";
-        clock->refresh_timer = 60;
+        clock->_format_string = "%a %b %d, %H:%M";
+        clock->_refresh_timer = 60;
         break;
     case ClockFormat::Seconds24h:
-        clock->format_string = "%a %b %d, %H:%M:%S";
-        clock->refresh_timer = 1;
+        clock->_format_string = "%a %b %d, %H:%M:%S";
+        clock->_refresh_timer = 1;
         break;
     case ClockFormat::None:
         assert(!"not reached");
     }
 
-    toytimer_init(&clock->timer, CLOCK_MONOTONIC,
+    toytimer_init(&clock->_timer, CLOCK_MONOTONIC,
         window_get_display(this->_window), clock_func);
-    clock_timer_reset(clock);
+    clock->timer_reset();
 
-    clock->widget = widget_add_widget(this->_widget, clock);
-    widget_set_redraw_handler(clock->widget, panel_clock_redraw_handler);
+    clock->_widget = widget_add_widget(this->_widget, clock);
+    widget_set_redraw_handler(clock->_widget, panel_clock_redraw_handler);
 }
 
 void Panel::add_launchers()
@@ -756,7 +774,7 @@ pr::Vector<struct panel_launcher*>& Panel::launchers()
     return this->_launchers;
 }
 
-struct panel_clock* Panel::clock()
+Panel::Clock* Panel::clock()
 {
     return this->_clock;
 }
@@ -789,6 +807,55 @@ uint32_t Panel::color() const
 void Panel::set_color(uint32_t color)
 {
     this->_color = color;
+}
+
+//=======================
+// Panel Clock Methods
+//=======================
+Panel::Clock::~Clock()
+{
+    widget_destroy(this->_widget);
+    toytimer_fini(&this->_timer);
+}
+
+int Panel::Clock::timer_reset()
+{
+    struct itimerspec its;
+    struct timespec ts;
+    struct tm *tm;
+
+    clock_gettime(CLOCK_REALTIME, &ts);
+    tm = localtime(&ts.tv_sec);
+
+    its.it_interval.tv_sec = this->_refresh_timer;
+    its.it_interval.tv_nsec = 0;
+    its.it_value.tv_sec =
+        this->_refresh_timer - tm->tm_sec % this->_refresh_timer;
+    its.it_value.tv_nsec = 10000000; /* 10 ms late to ensure the clock digit has actually changed */
+    timespec_add_nsec(&its.it_value, &its.it_value, -ts.tv_nsec);
+
+    toytimer_arm(&this->_timer, &its);
+    return 0;
+}
+
+struct widget* Panel::Clock::widget()
+{
+    return this->_widget;
+}
+
+Panel* Panel::Clock::panel()
+{
+    return this->_panel;
+}
+
+struct toytimer& Panel::Clock::timer()
+{
+    return this->_timer;
+}
+
+const pr::String& Panel::Clock::format_string() const
+{
+    return this->_format_string;
 }
 
 
@@ -1008,18 +1075,27 @@ static void panel_launcher_touch_up_handler(struct widget *widget,
 	panel_launcher_activate(launcher);
 }
 
-static void
-clock_func(struct toytimer *tt)
+static void clock_func(struct toytimer *tt)
 {
-	struct panel_clock *clock = container_of(tt, struct panel_clock, timer);
+    Panel::Clock *clock = nullptr;
+    Desktop *desktop = Desktop::instance();
 
-	widget_schedule_redraw(clock->widget);
+    for (auto& output: desktop->outputs) {
+        if (&output->panel()->clock()->timer() == tt) {
+            clock = output->panel()->clock();
+            break;
+        }
+    }
+
+    assert(clock != nullptr);
+
+    widget_schedule_redraw(clock->widget());
 }
 
 static void
 panel_clock_redraw_handler(struct widget *widget, void *data)
 {
-	struct panel_clock *clock = static_cast<struct panel_clock*>(data);
+    Panel::Clock *clock = static_cast<Panel::Clock*>(data);
 	cairo_t *cr;
 	struct rectangle allocation;
 	cairo_text_extents_t extents;
@@ -1029,13 +1105,13 @@ panel_clock_redraw_handler(struct widget *widget, void *data)
 
 	time(&rawtime);
 	timeinfo = localtime(&rawtime);
-	strftime(string, sizeof string, clock->format_string, timeinfo);
+    strftime(string, sizeof string, clock->format_string().c_str(), timeinfo);
 
 	widget_get_allocation(widget, &allocation);
 	if (allocation.width == 0)
 		return;
 
-    cr = widget_cairo_create(clock->panel->widget());
+    cr = widget_cairo_create(clock->panel()->widget());
 	cairo_set_font_size(cr, 14);
 	cairo_text_extents(cr, string, &extents);
 	if (allocation.x > 0)
@@ -1052,34 +1128,6 @@ panel_clock_redraw_handler(struct widget *widget, void *data)
 	cairo_set_source_rgba(cr, 1, 1, 1, 0.85);
 	cairo_show_text(cr, string);
 	cairo_destroy(cr);
-}
-
-static int
-clock_timer_reset(struct panel_clock *clock)
-{
-	struct itimerspec its;
-	struct timespec ts;
-	struct tm *tm;
-
-	clock_gettime(CLOCK_REALTIME, &ts);
-	tm = localtime(&ts.tv_sec);
-
-	its.it_interval.tv_sec = clock->refresh_timer;
-	its.it_interval.tv_nsec = 0;
-	its.it_value.tv_sec = clock->refresh_timer - tm->tm_sec % clock->refresh_timer;
-	its.it_value.tv_nsec = 10000000; /* 10 ms late to ensure the clock digit has actually changed */
-	timespec_add_nsec(&its.it_value, &its.it_value, -ts.tv_nsec);
-
-	toytimer_arm(&clock->timer, &its);
-	return 0;
-}
-
-static void
-panel_destroy_clock(struct panel_clock *clock)
-{
-	widget_destroy(clock->widget);
-	toytimer_fini(&clock->timer);
-	free(clock);
 }
 
 static void panel_resize_handler(struct widget *widget,
@@ -1119,7 +1167,7 @@ static void panel_resize_handler(struct widget *widget,
 		y = height - (h = DEFAULT_SPACING * 3);
 
     if (panel->clock()) {
-        widget_set_allocation(panel->clock()->widget,
+        widget_set_allocation(panel->clock()->widget(),
             x, y, w + 1, h + 1);
     }
 }
