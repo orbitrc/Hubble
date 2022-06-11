@@ -89,13 +89,38 @@ namespace hb {
 class Layoutput;
 }
 
-/** User data for each weston_output */
-struct wet_output {
-	struct weston_output *output;
-	struct wl_listener output_destroy_listener;
-    hb::Layoutput *layoutput;
-	struct wl_list link;	/**< in wet_layoutput::output_list */
+//===========
+// Output
+//===========
+
+namespace hb {
+
+class Output
+{
+public:
+    ~Output();
+
+    struct weston_output* weston_output();
+
+    void set_weston_output(struct weston_output *output);
+
+    hb::Layoutput* layoutput();
+
+    void set_layoutput(hb::Layoutput *layoutput);
+
+public:
+    struct weston_output *_weston_output;
+    hb::Layoutput *_layoutput;
+    struct wl_list link;	/**< in wet_layoutput::output_list */
+
+public:
+    //================
+    // Listeners
+    //================
+    struct wl_listener output_destroy_listener;
 };
+
+} // namespace hb
 
 #define MAX_CLONE_HEADS 16
 
@@ -103,6 +128,8 @@ struct wet_head_array {
 	struct weston_head *heads[MAX_CLONE_HEADS];	/**< heads to add */
 	unsigned n;				/**< the number of heads */
 };
+
+static void wet_output_handle_destroy(struct wl_listener *listener, void *data);
 
 namespace hb {
 class Compositor;
@@ -124,7 +151,7 @@ class Layoutput
 public:
     hb::Compositor *compositor;
     struct wl_list compositor_link;	/**< in wet_compositor::layoutput_list */
-    pr::Vector<struct wet_output*> outputs;	/**< wet_output::link */
+    pr::Vector<hb::Output*> outputs;	/**< wet_output::link */
     char *name;
     struct weston_config_section *section;
     struct wet_head_array add;	/**< tmp: heads to add as clones */
@@ -149,6 +176,47 @@ public:
     bool autolaunch_watch;
     bool use_color_manager;
 };
+
+//===================
+// Output Methods
+//===================
+Output::~Output()
+{
+    if (this->_weston_output) {
+        /* output->output destruction may be deferred in some cases (see
+         * drm_output_destroy()), so we need to forcibly trigger the
+         * destruction callback now, or otherwise would later access
+         * data that we are about to free
+         */
+        struct weston_output *save = this->_weston_output;
+        wet_output_handle_destroy(&this->output_destroy_listener, save);
+        weston_output_destroy(save);
+    }
+
+    wl_list_remove(&this->link);
+}
+
+struct weston_output* Output::weston_output()
+{
+    return this->_weston_output;
+}
+
+void Output::set_weston_output(struct weston_output *output)
+{
+    this->_weston_output = output;
+}
+
+hb::Layoutput* Output::layoutput()
+{
+    return this->_layoutput;
+}
+
+void Output::set_layoutput(hb::Layoutput *layoutput)
+{
+    this->_layoutput = layoutput;
+}
+
+
 
 } // namespace hb
 
@@ -1980,46 +2048,45 @@ static void wet_layoutput_destroy(hb::Layoutput *lo)
 	free(lo);
 }
 
-static void
-wet_output_handle_destroy(struct wl_listener *listener, void *data)
+static void wet_output_handle_destroy(struct wl_listener *listener, void *data)
 {
-	struct wet_output *output;
+    hb::Output *output;
 
 	output = wl_container_of(listener, output, output_destroy_listener);
-	assert(output->output == data);
+    assert(output->weston_output() == data);
 
-	output->output = NULL;
+    output->set_weston_output(nullptr);
+    output->set_layoutput(nullptr);
 	wl_list_remove(&output->output_destroy_listener.link);
 }
 
-static struct wet_output *
-wet_layoutput_create_output(hb::Layoutput *lo, const char *name)
+static hb::Output* wet_layoutput_create_output(hb::Layoutput *lo,
+        const char *name)
 {
-	struct wet_output *output;
+    hb::Output *output;
 
-    output = static_cast<struct wet_output*>(zalloc(sizeof *output));
+    output = static_cast<hb::Output*>(zalloc(sizeof *output));
 	if (!output)
 		return NULL;
 
-	output->output =
-		weston_compositor_create_output(lo->compositor->compositor,
-						name);
-	if (!output->output) {
+    auto created = weston_compositor_create_output(lo->compositor->compositor,
+        name);
+    output->set_weston_output(created);
+    if (!output->weston_output()) {
 		free(output);
 		return NULL;
 	}
 
-	output->layoutput = lo;
+    output->set_layoutput(lo);
     lo->outputs.push(output);
 	output->output_destroy_listener.notify = wet_output_handle_destroy;
-	weston_output_add_destroy_listener(output->output,
+    weston_output_add_destroy_listener(output->weston_output(),
 					   &output->output_destroy_listener);
 
 	return output;
 }
 
-static struct wet_output *
-wet_output_from_weston_output(struct weston_output *base)
+static hb::Output* wet_output_from_weston_output(struct weston_output *base)
 {
 	struct wl_listener *lis;
 
@@ -2028,25 +2095,7 @@ wet_output_from_weston_output(struct weston_output *base)
 	if (!lis)
 		return NULL;
 
-	return container_of(lis, struct wet_output, output_destroy_listener);
-}
-
-static void
-wet_output_destroy(struct wet_output *output)
-{
-	if (output->output) {
-		/* output->output destruction may be deferred in some cases (see
-		 * drm_output_destroy()), so we need to forcibly trigger the
-		 * destruction callback now, or otherwise would later access
-		 * data that we are about to free
-		 */
-		struct weston_output *save = output->output;
-		wet_output_handle_destroy(&output->output_destroy_listener, save);
-		weston_output_destroy(save);
-	}
-
-	wl_list_remove(&output->link);
-	free(output);
+    return container_of(lis, hb::Output, output_destroy_listener);
 }
 
 static hb::Layoutput* wet_compositor_find_layoutput(hb::Compositor *wet,
@@ -2058,7 +2107,7 @@ static hb::Layoutput* wet_compositor_find_layoutput(hb::Compositor *wet,
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 static void
@@ -2067,19 +2116,21 @@ wet_compositor_layoutput_add_head(hb::Compositor *wet,
 				  struct weston_config_section *section,
 				  struct weston_head *head)
 {
-    hb::Layoutput *lo;
+    hb::Layoutput *layoutput = nullptr;
 
-	lo = wet_compositor_find_layoutput(wet, output_name);
-	if (!lo) {
-		lo = wet_compositor_create_layoutput(wet, output_name, section);
-		if (!lo)
-			return;
-	}
+    layoutput = wet_compositor_find_layoutput(wet, output_name);
+    if (layoutput == nullptr) {
+        layoutput = wet_compositor_create_layoutput(wet, output_name, section);
+        if (!layoutput) {
+            return;
+        }
+    }
 
-	if (lo->add.n + 1 >= ARRAY_LENGTH(lo->add.heads))
-		return;
+    if (layoutput->add.n + 1 >= ARRAY_LENGTH(layoutput->add.heads)) {
+        return;
+    }
 
-	lo->add.heads[lo->add.n++] = head;
+    layoutput->add.heads[layoutput->add.n++] = head;
 }
 
 static void
@@ -2087,7 +2138,8 @@ wet_compositor_destroy_layout(hb::Compositor *wet)
 {
     for (auto& layoutput: wet->layoutputs) {
         for (auto& output: layoutput->outputs) {
-            wet_output_destroy(output);
+//            wet_output_destroy(output);
+            delete output;
         }
         wet_layoutput_destroy(layoutput);
     }
@@ -2223,7 +2275,7 @@ static int drm_try_attach_enable(struct weston_output *output,
 
 static int drm_process_layoutput(hb::Compositor *wet, hb::Layoutput *lo)
 {
-	struct wet_output *output, *tmp;
+    hb::Output *output, *tmp;
 	char *name = NULL;
 	int ret;
 
@@ -2238,15 +2290,15 @@ static int drm_process_layoutput(hb::Compositor *wet, hb::Layoutput *lo)
     for (auto& output: lo->outputs) {
 		struct wet_head_array failed = {};
 
-		if (!output->output) {
-			/* Clean up left-overs from destroyed heads. */
-			wet_output_destroy(output);
-			continue;
-		}
+        if (!output->weston_output()) {
+            /* Clean up left-overs from destroyed heads. */
+            delete output;
+            continue;
+        }
 
-		assert(output->output->enabled);
+        assert(output->weston_output()->enabled);
 
-		drm_try_attach(output->output, &lo->add, &failed);
+        drm_try_attach(output->weston_output(), &lo->add, &failed);
 		lo->add = failed;
 		if (lo->add.n == 0)
 			return 0;
@@ -2274,8 +2326,8 @@ static int drm_process_layoutput(hb::Compositor *wet, hb::Layoutput *lo)
 		if (!output)
 			return -1;
 
-		if (drm_try_attach_enable(output->output, lo) < 0) {
-			wet_output_destroy(output);
+        if (drm_try_attach_enable(output->weston_output(), lo) < 0) {
+            delete output;
 			return -1;
 		}
 	}
@@ -2306,7 +2358,7 @@ static void
 drm_head_disable(struct weston_head *head)
 {
 	struct weston_output *output_base;
-	struct wet_output *output;
+    hb::Output *output;
 	struct wet_head_tracker *track;
 
 	track = wet_head_tracker_from_head(head);
@@ -2316,11 +2368,12 @@ drm_head_disable(struct weston_head *head)
 	output_base = weston_head_get_output(head);
 	assert(output_base);
 	output = wet_output_from_weston_output(output_base);
-	assert(output && output->output == output_base);
+    assert(output && output->weston_output() == output_base);
 
 	weston_head_detach(head);
-	if (count_remaining_heads(output->output, NULL) == 0)
-		wet_output_destroy(output);
+    if (count_remaining_heads(output->weston_output(), NULL) == 0) {
+        delete output;
+    }
 }
 
 static void
