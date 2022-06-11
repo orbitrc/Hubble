@@ -34,13 +34,11 @@
 #include <errno.h>
 #include <math.h>
 #include <sys/wait.h>
-#include <libgen.h>
 #include <ctype.h>
 #include <time.h>
 #include <assert.h>
 
 // C++
-#include <vector>
 
 // Linux
 #include <linux/input.h>
@@ -1449,9 +1447,6 @@ static void background_draw(struct widget *widget, void *data)
 	check_desktop_ready(background->window);
 }
 
-static void
-background_destroy(struct background *background);
-
 //========================================
 // Struct Surface Configure Functions
 //========================================
@@ -2119,5 +2114,5 @@ int main(int argc, char *argv[])
     // Cleanup.
     fprintf(stderr, " [DEBUG] desktop-shell clean up...\n");
 
-	return 0;
+    return 0;
 }
