@@ -857,6 +857,9 @@ const pr::String& Panel::Clock::format_string() const
 }
 
 
+//===================
+// C Functions
+//===================
 
 static void
 sigchild_handler(int s)

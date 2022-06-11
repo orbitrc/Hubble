@@ -725,8 +725,8 @@ hb::DesktopShell* hb::DesktopShell::instance()
 extern "C" {
 #endif
 
-static void
-focus_animation_done(struct weston_view_animation *animation, void *data)
+static void focus_animation_done(struct weston_view_animation *animation,
+        void *data)
 {
     (void)animation;
     auto workspace = static_cast<hb::Workspace*>(data);

@@ -473,53 +473,45 @@ struct desktop_shell {
 
     char *client; //
 
-	struct timespec startup_time;
+    struct timespec startup_time; //
 };
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct weston_output *
-get_default_output(struct weston_compositor *compositor);
+struct weston_output* get_default_output(struct weston_compositor *compositor);
 
-struct weston_view *
-get_default_view(struct weston_surface *surface);
+struct weston_view* get_default_view(struct weston_surface *surface);
 
-struct shell_surface *
-get_shell_surface(struct weston_surface *surface);
+struct shell_surface* get_shell_surface(struct weston_surface *surface);
 
 hb::Workspace* get_current_workspace(struct desktop_shell *shell);
 
-void
-get_output_work_area(struct desktop_shell *shell,
-		     struct weston_output *output,
-		     pixman_rectangle32_t *area);
+void get_output_work_area(struct desktop_shell *shell,
+        struct weston_output *output,
+        pixman_rectangle32_t *area);
 
-void
-lower_fullscreen_layer(struct desktop_shell *shell,
-		       struct weston_output *lowering_output);
+void lower_fullscreen_layer(struct desktop_shell *shell,
+        struct weston_output *lowering_output);
 
-void
-activate(struct desktop_shell *shell, struct weston_view *view,
-	 struct weston_seat *seat, uint32_t flags);
+void activate(struct desktop_shell *shell, struct weston_view *view,
+        struct weston_seat *seat, uint32_t flags);
 
-void
-exposay_binding(struct weston_keyboard *keyboard,
-		enum weston_keyboard_modifier modifier,
-		void *data);
+void exposay_binding(struct weston_keyboard *keyboard,
+        enum weston_keyboard_modifier modifier,
+        void *data);
 
 int input_panel_setup(struct desktop_shell *shell);
 
 void input_panel_destroy(struct desktop_shell *shell);
 
 typedef void (*shell_for_each_layer_func_t)(struct desktop_shell *,
-					    struct weston_layer *, void *);
+        struct weston_layer *, void *);
 
-void
-shell_for_each_layer(struct desktop_shell *shell,
-		     shell_for_each_layer_func_t func,
-		     void *data);
+void shell_for_each_layer(struct desktop_shell *shell,
+        shell_for_each_layer_func_t func,
+        void *data);
 
 #ifdef __cplusplus
 }
