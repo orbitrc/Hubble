@@ -79,7 +79,6 @@ enum class ClockFormat {
 
 class Output;
 struct panel_launcher;
-struct panel_clock;
 
 //=============
 // Desktop
@@ -370,7 +369,6 @@ static void panel_destroy_launcher(struct panel_launcher *launcher);
 // Panel Clock
 //===============
 
-static void panel_destroy_clock(struct panel_clock *clock);
 
 //==================
 // Unlock Dialog
