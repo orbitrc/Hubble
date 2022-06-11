@@ -375,7 +375,7 @@ private:
 
     struct weston_layer _minimized_layer;
 
-    pr::Vector<struct shell_output*> _output_list;
+    pr::Vector<hb::ShellOutput*> _output_list;
     pr::Vector<struct shell_seat*> _seat_list;
 
     enum weston_desktop_shell_panel_position _panel_position;
@@ -501,8 +501,6 @@ struct shell_surface* get_shell_surface(struct weston_surface *surface);
 //============================
 // Desktop Shell C Methods
 //============================
-
-hb::Workspace* get_current_workspace(struct desktop_shell *shell);
 
 void get_output_work_area(struct desktop_shell *shell,
         struct weston_output *output,

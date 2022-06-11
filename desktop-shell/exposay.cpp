@@ -644,7 +644,8 @@ exposay_transition_active(struct desktop_shell *shell)
     hb::ShellOutput *shell_output;
 	bool animate = false;
 
-	shell->exposay.workspace = get_current_workspace(shell);
+    shell->exposay.workspace =
+        shell->workspaces.array[shell->workspaces.current];
 	shell->exposay.focus_prev = get_default_view(keyboard->focus);
 	shell->exposay.focus_current = get_default_view(keyboard->focus);
 	shell->exposay.clicked = NULL;

@@ -832,7 +832,7 @@ static void focus_state_surface_destroy(struct wl_listener *listener, void *data
 static hb::FocusState* ensure_focus_state(struct desktop_shell *shell, struct weston_seat *seat)
 {
     fprintf(stderr, " [DEBUG] BEGIN ensure_focus_state()\n");
-    hb::Workspace *ws = get_current_workspace(shell);
+    hb::Workspace *ws = shell->workspaces.array[shell->workspaces.current];
     hb::FocusState *state = nullptr;
 
 //	wl_list_for_each(state, &ws->focus_list, link)
@@ -1272,26 +1272,10 @@ void hb::ShellOutput::Fade::set_animation(
 extern "C" {
 #endif
 
-hb::Workspace* get_workspace(struct desktop_shell *shell, unsigned int index)
-{
-    fprintf(stderr, " [DEBUG] BEGIN get_workspace()\n");
-    // struct workspace **pws = static_cast<struct workspace**>(shell->workspaces.array.data);
-    hb::Workspace *pws = shell->workspaces.array[index];
-    fprintf(stderr, " [DEBUG] END get_workspace()\n");
-
-    return pws;
-}
-
-hb::Workspace* get_current_workspace(struct desktop_shell *shell)
-{
-    fprintf(stderr, " [DEBUG] BEGIN get_current_workspace()\n");
-    return get_workspace(shell, shell->workspaces.current);
-}
-
 static void activate_workspace(struct desktop_shell *shell, unsigned int index)
 {
     fprintf(stderr, " [DEBUG] BEGIN activate_workspace()\n");
-    hb::Workspace *ws = get_workspace(shell, index);
+    hb::Workspace *ws = shell->workspaces.array[index];
     weston_layer_set_position(ws->layer(), WESTON_LAYER_POSITION_NORMAL);
 
     shell->workspaces.current = index;
@@ -1476,8 +1460,8 @@ static void change_workspace(struct desktop_shell *shell, unsigned int index)
 	if (!wl_list_empty(&shell->fullscreen_layer.view_list.link))
 		return;
 
-	from = get_current_workspace(shell);
-	to = get_workspace(shell, index);
+    from = shell->workspaces.array[shell->workspaces.current];
+    to = shell->workspaces.array[index];
 
     if (shell->workspaces.anim_from == to &&
             shell->workspaces.anim_to == from) {
@@ -1556,8 +1540,8 @@ static void take_surface_to_workspace_by_seat(struct desktop_shell *shell,
 	    is_focus_view(view))
 		return;
 
-	from = get_current_workspace(shell);
-	to = get_workspace(shell, index);
+    from = shell->workspaces.array[shell->workspaces.current];
+    to = shell->workspaces.array[index];
 
 	weston_layer_entry_remove(&view->layer_link);
     weston_layer_entry_insert(&to->layer()->view_list, &view->layer_link);
@@ -2144,8 +2128,8 @@ static struct weston_layer_entry* shell_surface_calculate_layer_link(struct shel
 
 	/* Move the surface to a normal workspace layer so that surfaces
 	 * which were previously fullscreen or transient are no longer
-	 * rendered on top. */
-    ws = get_current_workspace(shsurf->shell);
+     * rendered on top. */
+    ws = shsurf->shell->workspaces.array[shsurf->shell->workspaces.current];
     return &ws->layer()->view_list;
 }
 
@@ -2291,8 +2275,9 @@ set_minimized(struct weston_surface *surface)
 
 	assert(weston_surface_get_main_surface(view->surface) == view->surface);
 
-	shsurf = get_shell_surface(surface);
-    current_ws = get_current_workspace(shsurf->shell);
+    shsurf = get_shell_surface(surface);
+    current_ws =
+        shsurf->shell->workspaces.array[shsurf->shell->workspaces.current];
 
 	weston_layer_entry_remove(&view->layer_link);
 	weston_layer_entry_insert(&shsurf->shell->minimized_layer.view_list, &view->layer_link);
@@ -3501,7 +3486,8 @@ desktop_shell_set_lock_surface(struct wl_client *client,
 static void
 resume_desktop(struct desktop_shell *shell)
 {
-    hb::Workspace *ws = get_current_workspace(shell);
+    hb::Workspace *ws =
+        shell->workspaces.array[shell->workspaces.current];
 
 	weston_layer_unset_position(&shell->lock_layer);
 
@@ -3514,7 +3500,8 @@ resume_desktop(struct desktop_shell *shell)
 				  WESTON_LAYER_POSITION_UI);
     weston_layer_set_position(ws->layer(), WESTON_LAYER_POSITION_NORMAL);
 
-    restore_focus_state(shell, get_current_workspace(shell));
+    restore_focus_state(shell,
+        shell->workspaces.array[shell->workspaces.current]);
 
 	shell->locked = false;
     shell_fade(shell, FadeType::FadeIn);
@@ -4059,7 +4046,7 @@ void lower_fullscreen_layer(struct desktop_shell *shell,
     hb::Workspace *ws;
 	struct weston_view *view, *prev;
 
-	ws = get_current_workspace(shell);
+    ws = shell->workspaces.array[shell->workspaces.current];
 	wl_list_for_each_reverse_safe(view, prev,
 				      &shell->fullscreen_layer.view_list.link,
 				      layer_link.link) {
@@ -4165,7 +4152,7 @@ void activate(struct desktop_shell *shell, struct weston_view *view,
 	shell_surface_update_layer(shsurf);
 
     if (shell->focus_animation_type != AnimationType::None) {
-        ws = get_current_workspace(shell);
+        ws = shell->workspaces.array[shell->workspaces.current];
         animate_focus_change(shell, ws, get_default_view(old_es), get_default_view(es));
     }
     fprintf(stderr, " [DEBUG] END activate()\n");
@@ -4271,7 +4258,7 @@ unfocus_all_seats(struct desktop_shell *shell)
 static void
 lock(struct desktop_shell *shell)
 {
-    hb::Workspace *ws = get_current_workspace(shell);
+    hb::Workspace *ws = shell->workspaces.array[shell->workspaces.current];
 
 	if (shell->locked) {
 		weston_compositor_sleep(shell->compositor);
@@ -4777,7 +4764,8 @@ static void switcher_next(struct switcher *switcher)
 	struct weston_view *view;
 	struct weston_view *first = NULL, *prev = NULL, *next = NULL;
 	struct shell_surface *shsurf;
-    hb::Workspace *ws = get_current_workspace(switcher->shell);
+    hb::Workspace *ws =
+        switcher->shell->workspaces.array[switcher->shell->workspaces.current];
 
     // temporary re-display minimized surfaces.
     struct weston_view *tmp;
@@ -4848,7 +4836,8 @@ switcher_destroy(struct switcher *switcher)
 {
 	struct weston_view *view;
 	struct weston_keyboard *keyboard = switcher->grab.keyboard;
-    hb::Workspace *ws = get_current_workspace(switcher->shell);
+    hb::Workspace *ws =
+        switcher->shell->workspaces.array[switcher->shell->workspaces.current];
 
     wl_list_for_each(view, &ws->layer()->view_list.link, layer_link.link) {
 		if (is_focus_view(view))
