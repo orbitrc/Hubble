@@ -158,6 +158,15 @@ public:
     struct weston_view_animation* focus_animation();
     void set_focus_animation(struct weston_view_animation* anim);
 
+    bool has_only(struct weston_surface *surface);
+
+    void view_translate(struct weston_view *view, double d);
+
+    void translate_out(double fraction);
+    void translate_in(double fraction);
+
+    void deactivate_transforms();
+
 public:
     struct wl_listener seat_destroyed_listener;
 
@@ -512,6 +521,10 @@ typedef void (*shell_for_each_layer_func_t)(struct desktop_shell *,
 void shell_for_each_layer(struct desktop_shell *shell,
         shell_for_each_layer_func_t func,
         void *data);
+
+struct weston_transform* view_get_transform(struct weston_view *view);
+
+unsigned int get_output_height(struct weston_output *output);
 
 #ifdef __cplusplus
 }

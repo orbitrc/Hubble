@@ -1013,12 +1013,6 @@ static void seat_destroyed(struct wl_listener *listener, void *data)
             wl_list_remove(&state->link);
         }
     }
-
-    /*
-	wl_list_for_each_safe(state, next, &ws->focus_list, link)
-		if (state->seat == seat)
-			wl_list_remove(&state->link);
-    */
 }
 
 static void desktop_shell_destroy_views_on_layer(struct weston_layer*);
@@ -1112,6 +1106,93 @@ void hb::Workspace::set_focus_animation(struct weston_view_animation *anim)
     this->_focus_animation = anim;
 }
 
+bool hb::Workspace::has_only(struct weston_surface *surface)
+{
+    struct wl_list *list = &this->layer()->view_list.link;
+    struct wl_list *e;
+
+    if (wl_list_empty(list)) {
+        return false;
+    }
+
+    e = list->next;
+
+    if (e->next != list) {
+        return false;
+    }
+
+    return container_of(e, struct weston_view, layer_link.link)->surface == surface;
+}
+
+void hb::Workspace::view_translate(struct weston_view *view, double d)
+{
+    struct weston_transform *transform = view_get_transform(view);
+
+    if (!transform) {
+        return;
+    }
+
+    if (wl_list_empty(&transform->link)) {
+        wl_list_insert(view->geometry.transformation_list.prev,
+            &transform->link);
+    }
+
+    weston_matrix_init(&transform->matrix);
+    weston_matrix_translate(&transform->matrix,
+        0.0, d, 0.0);
+    weston_view_geometry_dirty(view);
+}
+
+void hb::Workspace::translate_out(double fraction)
+{
+    struct weston_view *view;
+    unsigned int height;
+    double d;
+
+    wl_list_for_each(view, &(this->_layer.view_list.link), layer_link.link) {
+        height = get_output_height(view->surface->output);
+        d = height * fraction;
+
+        this->view_translate(view, d);
+    }
+}
+
+void hb::Workspace::translate_in(double fraction)
+{
+    struct weston_view *view;
+    unsigned int height;
+    double d;
+
+    wl_list_for_each(view, &(this->_layer.view_list.link), layer_link.link) {
+        height = get_output_height(view->surface->output);
+
+        if (fraction > 0)
+            d = -(height - height * fraction);
+        else
+            d = height + height * fraction;
+
+        this->view_translate(view, d);
+    }
+}
+
+void hb::Workspace::deactivate_transforms()
+{
+    struct weston_view *view;
+    struct weston_transform *transform;
+
+    wl_list_for_each(view, &this->_layer.view_list.link, layer_link.link) {
+        transform = view_get_transform(view);
+        if (!transform)
+            continue;
+
+        if (!wl_list_empty(&transform->link)) {
+            wl_list_remove(&transform->link);
+            wl_list_init(&transform->link);
+        }
+        weston_view_geometry_dirty(view);
+    }
+}
+
 //=====================
 // Shell Output: Fade
 //=====================
@@ -1190,13 +1271,12 @@ static void activate_workspace(struct desktop_shell *shell, unsigned int index)
     fprintf(stderr, " [DEBUG] END activate_workspace()\n");
 }
 
-static unsigned int
-get_output_height(struct weston_output *output)
+unsigned int get_output_height(struct weston_output *output)
 {
-	return abs(output->region.extents.y1 - output->region.extents.y2);
+    return abs(output->region.extents.y1 - output->region.extents.y2);
 }
 
-static struct weston_transform* view_get_transform(struct weston_view *view)
+struct weston_transform* view_get_transform(struct weston_view *view)
 {
     class hb::FocusSurface *fsurf = NULL;
     struct shell_surface *shsurf = NULL;
@@ -1213,59 +1293,6 @@ static struct weston_transform* view_get_transform(struct weston_view *view)
 	return NULL;
 }
 
-static void view_translate(hb::Workspace *ws, struct weston_view *view,
-        double d)
-{
-    (void)ws;
-    struct weston_transform *transform = view_get_transform(view);
-
-    if (!transform) {
-        return;
-    }
-
-    if (wl_list_empty(&transform->link)) {
-        wl_list_insert(view->geometry.transformation_list.prev,
-            &transform->link);
-    }
-
-    weston_matrix_init(&transform->matrix);
-    weston_matrix_translate(&transform->matrix,
-        0.0, d, 0.0);
-    weston_view_geometry_dirty(view);
-}
-
-static void
-workspace_translate_out(hb::Workspace *ws, double fraction)
-{
-	struct weston_view *view;
-	unsigned int height;
-	double d;
-
-    wl_list_for_each(view, &(ws->layer()->view_list.link), layer_link.link) {
-		height = get_output_height(view->surface->output);
-		d = height * fraction;
-
-		view_translate(ws, view, d);
-	}
-}
-
-static void workspace_translate_in(hb::Workspace *ws, double fraction)
-{
-    struct weston_view *view;
-    unsigned int height;
-    double d;
-
-    wl_list_for_each(view, &(ws->layer()->view_list.link), layer_link.link) {
-        height = get_output_height(view->surface->output);
-
-        if (fraction > 0)
-            d = -(height - height * fraction);
-        else
-            d = height + height * fraction;
-
-        view_translate(ws, view, d);
-    }
-}
 
 static void reverse_workspace_change_animation(struct desktop_shell *shell,
         unsigned int index,
@@ -1286,24 +1313,6 @@ static void reverse_workspace_change_animation(struct desktop_shell *shell,
 	weston_compositor_schedule_repaint(shell->compositor);
 }
 
-static void workspace_deactivate_transforms(hb::Workspace *ws)
-{
-	struct weston_view *view;
-	struct weston_transform *transform;
-
-    wl_list_for_each(view, &ws->layer()->view_list.link, layer_link.link) {
-		transform = view_get_transform(view);
-		if (!transform)
-			continue;
-
-		if (!wl_list_empty(&transform->link)) {
-			wl_list_remove(&transform->link);
-			wl_list_init(&transform->link);
-		}
-		weston_view_geometry_dirty(view);
-	}
-}
-
 static void finish_workspace_change_animation(struct desktop_shell *shell,
         hb::Workspace *from,
         hb::Workspace *to)
@@ -1320,8 +1329,8 @@ static void finish_workspace_change_animation(struct desktop_shell *shell,
 		weston_view_damage_below(view);
 
 	wl_list_remove(&shell->workspaces.animation.link);
-	workspace_deactivate_transforms(from);
-	workspace_deactivate_transforms(to);
+    from->deactivate_transforms();
+    to->deactivate_transforms();
 	shell->workspaces.anim_to = NULL;
 
     weston_layer_unset_position(shell->workspaces.anim_from->layer());
@@ -1370,8 +1379,8 @@ static void animate_workspace_change_frame(struct weston_animation *animation,
 	if (t < DEFAULT_WORKSPACE_CHANGE_ANIMATION_LENGTH) {
 		weston_compositor_schedule_repaint(shell->compositor);
 
-		workspace_translate_out(from, shell->workspaces.anim_dir * y);
-		workspace_translate_in(to, shell->workspaces.anim_dir * y);
+        from->translate_out(shell->workspaces.anim_dir * y);
+        to->translate_in(shell->workspaces.anim_dir * y);
 		shell->workspaces.anim_current = y;
 
 		weston_compositor_schedule_repaint(shell->compositor);
@@ -1412,7 +1421,7 @@ static void animate_workspace_change(struct desktop_shell *shell,
     weston_layer_set_position(from->layer(),
         static_cast<enum weston_layer_position>(WESTON_LAYER_POSITION_NORMAL - 1));
 
-    workspace_translate_in(to, 0);
+    to->translate_in(0);
 
     restore_focus_state(shell, to);
 
@@ -1478,22 +1487,6 @@ static void change_workspace(struct desktop_shell *shell, unsigned int index)
     } else {
         animate_workspace_change(shell, index, from, to);
     }
-}
-
-static bool workspace_has_only(hb::Workspace *ws, struct weston_surface *surface)
-{
-    struct wl_list *list = &ws->layer()->view_list.link;
-	struct wl_list *e;
-
-	if (wl_list_empty(list))
-		return false;
-
-	e = list->next;
-
-	if (e->next != list)
-		return false;
-
-	return container_of(e, struct weston_view, layer_link.link)->surface == surface;
 }
 
 static void
@@ -1562,7 +1555,7 @@ static void take_surface_to_workspace_by_seat(struct desktop_shell *shell,
 						  shell->workspaces.anim_to);
 
     if (from->is_empty() &&
-            workspace_has_only(to, surface)) {
+            to->has_only(surface)) {
         update_workspace(shell, index, from, to);
     } else {
 		if (shsurf != NULL &&
@@ -5151,10 +5144,6 @@ void shell_for_each_layer(struct desktop_shell *shell,
 	func(shell, &shell->lock_layer, data);
 	func(shell, &shell->input_panel_layer, data);
 
-    /*
-    wl_array_for_each(ws, &shell->workspaces.array)
-        func(shell, &(*ws)->layer, data);
-    */
     for (auto& ws: shell->workspaces.array) {
         auto layer = ws->layer();
         func(shell, layer, data);
