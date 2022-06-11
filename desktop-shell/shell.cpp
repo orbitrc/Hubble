@@ -5429,6 +5429,8 @@ static void shell_destroy(struct wl_listener *listener, void *data)
         shell_output_destroy(shell_output);
         fprintf(stderr, "   - shell_destroy() - loop. shell destroyed.\n");
     }
+    // Destroy output_list.
+    shell->output_list = pr::Vector<hb::ShellOutput*>();
 
 	wl_list_remove(&shell->output_create_listener.link);
 	wl_list_remove(&shell->output_move_listener.link);
