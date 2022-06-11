@@ -254,7 +254,7 @@ exposay_margin_size(struct desktop_shell *shell, pixman_rectangle32_t exposay_ar
  * will have a smaller number of columns.
  */
 static enum exposay_layout_state
-exposay_layout(struct desktop_shell *shell, struct shell_output *shell_output)
+exposay_layout(struct desktop_shell *shell, hb::ShellOutput *shell_output)
 {
     hb::Workspace *workspace = shell->exposay.workspace;
 	struct weston_output *output = shell_output->output;
@@ -641,7 +641,7 @@ exposay_transition_active(struct desktop_shell *shell)
 	struct weston_seat *seat = shell->exposay.seat;
 	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
 	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
-	struct shell_output *shell_output;
+    hb::ShellOutput *shell_output;
 	bool animate = false;
 
 	shell->exposay.workspace = get_current_workspace(shell);

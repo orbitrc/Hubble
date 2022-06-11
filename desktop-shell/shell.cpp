@@ -462,8 +462,7 @@ static AnimationType get_animation_type(char *animation)
     }
 }
 
-static void
-shell_configuration(struct desktop_shell *shell)
+static void shell_configuration(struct desktop_shell *shell)
 {
 	struct weston_config_section *section;
 	char *s, *client;
@@ -634,6 +633,7 @@ struct weston_transform* hb::FocusSurface::workspace_transform_ptr()
     return &(this->_workspace_transform);
 }
 
+
 //=================
 // Focus State
 //=================
@@ -687,6 +687,40 @@ void hb::FocusState::set_focus(struct weston_surface *surface)
         wl_signal_add(&surface->destroy_signal,
             &this->surface_destroy_listener);
     }
+}
+
+//=================
+// Shell Output
+//=================
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+static void handle_output_destroy(struct wl_listener *listener, void *data);
+
+#ifdef __cplusplus
+}
+#endif
+
+hb::ShellOutput::ShellOutput(struct weston_output *output)
+{
+    this->shell = nullptr;
+    this->panel_surface = nullptr;
+    this->background_surface = nullptr;
+
+    this->output = output;
+    this->destroy_listener.notify = handle_output_destroy;
+    wl_signal_add(&output->destroy_signal, &this->destroy_listener);
+
+    // !! Do this in desktop_shell
+    /*
+    shell->output_list.push(this);
+
+    if (shell->output_list.length() == 1) {
+        shell_for_each_layer(shell,
+            shell_output_changed_move_layer, NULL);
+    }
+    */
 }
 
 //=================
@@ -1030,8 +1064,6 @@ hb::Workspace::Workspace(struct desktop_shell *shell)
     this->_fsurf_front = nullptr;
     this->_fsurf_back = nullptr;
     this->_focus_animation = nullptr;
-
-    fprintf(stderr, " [DEBUG] Workspace() - done.\n");
 }
 
 hb::Workspace::~Workspace()
@@ -3181,7 +3213,7 @@ configure_static_view(struct weston_view *ev, struct weston_layer *layer, int x,
 }
 
 
-static struct shell_output* find_shell_output_from_weston_output(
+static hb::ShellOutput* find_shell_output_from_weston_output(
         struct desktop_shell *shell,
         struct weston_output *output)
 {
@@ -3227,26 +3259,27 @@ static void
 handle_background_surface_destroy(struct wl_listener *listener, void *data)
 {
     (void)data;
-	struct shell_output *output =
-	    container_of(listener, struct shell_output, background_surface_listener);
+    hb::ShellOutput *output =
+        container_of(listener, hb::ShellOutput, background_surface_listener);
 
 	weston_log("background surface gone\n");
 	wl_list_remove(&output->background_surface_listener.link);
 	output->background_surface = NULL;
 }
 
-static void
-desktop_shell_set_background(struct wl_client *client,
-			     struct wl_resource *resource,
-			     struct wl_resource *output_resource,
-			     struct wl_resource *surface_resource)
+static void desktop_shell_set_background(struct wl_client *client,
+        struct wl_resource *resource,
+        struct wl_resource *output_resource,
+        struct wl_resource *surface_resource)
 {
+    fprintf(stderr, " [DEBUG] BEGIN desktop_shell_set_background()\n");
+
     (void)client;
     struct desktop_shell *shell = static_cast<struct desktop_shell*>(
         wl_resource_get_user_data(resource));
     struct weston_surface *surface = static_cast<struct weston_surface*>(
         wl_resource_get_user_data(surface_resource));
-	struct shell_output *sh_output;
+    hb::ShellOutput *sh_output;
 	struct weston_view *view, *next;
 
 	if (surface->committed) {
@@ -3266,7 +3299,8 @@ desktop_shell_set_background(struct wl_client *client,
 	surface->output = weston_head_from_resource(output_resource)->output;
 	weston_view_set_output(view, surface->output);
 
-	sh_output = find_shell_output_from_weston_output(shell, surface->output);
+    sh_output = find_shell_output_from_weston_output(shell, surface->output);
+    fprintf(stderr, "   - Found shell output: %p\n", sh_output);
 	if (sh_output->background_surface) {
 		/* The output already has a background, tell our helper
 		 * there is no need for another one. */
@@ -3286,6 +3320,8 @@ desktop_shell_set_background(struct wl_client *client,
 		wl_signal_add(&surface->destroy_signal,
 			      &sh_output->background_surface_listener);
 	}
+
+    fprintf(stderr, " [DEBUG] END desktop_shell_set_background()\n");
 }
 
 static int
@@ -3329,8 +3365,8 @@ static void
 handle_panel_surface_destroy(struct wl_listener *listener, void *data)
 {
     (void)data;
-	struct shell_output *output =
-	    container_of(listener, struct shell_output, panel_surface_listener);
+    hb::ShellOutput *output =
+        container_of(listener, hb::ShellOutput, panel_surface_listener);
 
 	weston_log("panel surface gone\n");
 	wl_list_remove(&output->panel_surface_listener.link);
@@ -3350,7 +3386,7 @@ desktop_shell_set_panel(struct wl_client *client,
     struct weston_surface *surface = static_cast<struct weston_surface*>(
         wl_resource_get_user_data(surface_resource));
 	struct weston_view *view, *next;
-	struct shell_output *sh_output;
+    hb::ShellOutput *sh_output;
 
 	if (surface->committed) {
 		wl_resource_post_error(surface_resource,
@@ -4297,7 +4333,7 @@ static void
 shell_fade_done_for_output(struct weston_view_animation *animation, void *data)
 {
     (void)animation;
-    struct shell_output *shell_output = static_cast<struct shell_output*>(data);
+    hb::ShellOutput *shell_output = static_cast<hb::ShellOutput*>(data);
 	struct desktop_shell *shell = shell_output->shell;
 
     shell_output->fade.set_animation(nullptr);
@@ -4315,7 +4351,7 @@ shell_fade_done_for_output(struct weston_view_animation *animation, void *data)
 }
 
 static struct weston_view *
-shell_fade_create_surface_for_output(struct desktop_shell *shell, struct shell_output *shell_output)
+shell_fade_create_surface_for_output(struct desktop_shell *shell, hb::ShellOutput *shell_output)
 {
 	struct weston_compositor *compositor = shell->compositor;
 	struct weston_surface *surface;
@@ -4479,8 +4515,7 @@ static void shell_fade_init(struct desktop_shell *shell)
 	}
 }
 
-static void
-idle_handler(struct wl_listener *listener, void *data)
+static void idle_handler(struct wl_listener *listener, void *data)
 {
     (void)data;
 	struct desktop_shell *shell =
@@ -4612,7 +4647,7 @@ check_desktop_shell_crash_too_early(struct desktop_shell *shell)
 	if (now.tv_sec - shell->startup_time.tv_sec < 30) {
 		weston_log("Error: %s apparently cannot run at all.\n",
 			   shell->client);
-		weston_log(" - Detail: now.tv_sec: %d, shell->startup_time.tv_sec: %d",
+        weston_log(" - Detail: now.tv_sec: %ld, shell->startup_time.tv_sec: %ld",
 			now.tv_sec, shell->startup_time.tv_sec);
 		weston_log_continue(STAMP_SPACE "Quitting...");
 		weston_compositor_exit_with_code(shell->compositor,
@@ -5173,10 +5208,13 @@ static void shell_output_changed_move_layer(struct desktop_shell *shell,
         " [DEBUG] END shell_output_changed_move_layer()\n");
 }
 
-static void shell_output_destroy(struct shell_output *shell_output)
+static void shell_output_destroy(hb::ShellOutput *shell_output)
 {
     struct desktop_shell *shell = shell_output->shell;
-    fprintf(stderr, " [DEBUG] BEGIN shell_output_destroy() shell: %p\n", shell);
+    fprintf(stderr,
+        " [DEBUG] BEGIN shell_output_destroy() shell: %p, shell_output: %p\n",
+        shell,
+        shell_output);
 
     fprintf(stderr, "   - shell_for_each_layer.\n");
     shell_for_each_layer(shell, shell_output_changed_move_layer, NULL);
@@ -5213,10 +5251,11 @@ static void shell_output_destroy(struct shell_output *shell_output)
 
 static void handle_output_destroy(struct wl_listener *listener, void *data)
 {
-    fprintf(stderr, " [DEBUG] BEGIN handle_output_destroy()\n");
+    hb::ShellOutput *shell_output =
+        container_of(listener, hb::ShellOutput, destroy_listener);
 
-    struct shell_output *shell_output =
-        container_of(listener, struct shell_output, destroy_listener);
+    fprintf(stderr, " [DEBUG] BEGIN handle_output_destroy() shell_output: %p\n",
+        shell_output);
 
     shell_output_destroy(shell_output);
 
@@ -5238,50 +5277,36 @@ shell_resize_surface_to_output(struct desktop_shell *shell,
 }
 
 
-static void
-handle_output_resized(struct wl_listener *listener, void *data)
+static void handle_output_resized(struct wl_listener *listener, void *data)
 {
 	struct desktop_shell *shell =
 		container_of(listener, struct desktop_shell, resized_listener);
 	struct weston_output *output = (struct weston_output *)data;
-	struct shell_output *sh_output = find_shell_output_from_weston_output(shell, output);
+    hb::ShellOutput *sh_output = find_shell_output_from_weston_output(shell, output);
 
 	shell_resize_surface_to_output(shell, sh_output->background_surface, output);
 	shell_resize_surface_to_output(shell, sh_output->panel_surface, output);
 }
 
-static void create_shell_output(struct desktop_shell *shell,
-        struct weston_output *output)
+static void handle_output_create(struct wl_listener *listener, void *data)
 {
-	struct shell_output *shell_output;
+    fprintf(stderr, " [DEBUG] BEGIN handle_output_create()\n");
 
-    shell_output = (struct shell_output*)zalloc(sizeof *shell_output);
-	if (shell_output == NULL)
-		return;
-
-	shell_output->output = output;
-    shell_output->shell = shell;
-	shell_output->destroy_listener.notify = handle_output_destroy;
-	wl_signal_add(&output->destroy_signal,
-		      &shell_output->destroy_listener);
-//	wl_list_insert(shell->output_list.prev, &shell_output->link);
-    shell->output_list.push(shell_output);
-
-//	if (wl_list_length(&shell->output_list) == 1)
-    if (shell->output_list.length() == 1) {
-        shell_for_each_layer(shell,
-            shell_output_changed_move_layer, NULL);
-    }
-}
-
-static void
-handle_output_create(struct wl_listener *listener, void *data)
-{
 	struct desktop_shell *shell =
 		container_of(listener, struct desktop_shell, output_create_listener);
 	struct weston_output *output = (struct weston_output *)data;
 
-	create_shell_output(shell, output);
+    hb::ShellOutput *shell_output = new hb::ShellOutput(output);
+    shell_output->shell = shell;
+    shell->output_list.push(shell_output);
+
+    fprintf(stderr, "   - shell->output_list.length(): %ld\n",
+        shell->output_list.length());
+    if (shell->output_list.length() == 1) {
+        shell_for_each_layer(shell, shell_output_changed_move_layer, NULL);
+    }
+
+    fprintf(stderr, " [DEBUG] END handle_output_create()\n");
 }
 
 static void
@@ -5306,31 +5331,46 @@ handle_output_move_layer(struct desktop_shell *shell,
 static void
 handle_output_move(struct wl_listener *listener, void *data)
 {
+    fprintf(stderr, " [DEBUG] BEGIN handle_output_move()\n");
+
 	struct desktop_shell *shell;
 
 	shell = container_of(listener, struct desktop_shell,
 			     output_move_listener);
 
 	shell_for_each_layer(shell, handle_output_move_layer, data);
+
+    fprintf(stderr, " [DEBUG] END handle_output_move()\n");
 }
 
-static void
-setup_output_destroy_handler(struct weston_compositor *ec,
-							struct desktop_shell *shell)
+static void setup_output_destroy_handler(struct weston_compositor *ec,
+        struct desktop_shell *shell)
 {
-	struct weston_output *output;
+    fprintf(stderr, " [DEBUG] BEGIN setup_output_destroy_handler()\n");
+
+    struct weston_output *output;
 
 //    wl_list_init(&shell->output_list);
     wl_list_for_each(output, &ec->output_list, link) {
-        create_shell_output(shell, output);
+        auto shell_output = new hb::ShellOutput(output);
+        shell_output->shell = shell;
+        shell->output_list.push(shell_output);
+
+        fprintf(stderr, "   - shell->output_list.length(): %ld\n",
+            shell->output_list.length());
+        if (shell->output_list.length() == 1) {
+            shell_for_each_layer(shell, shell_output_changed_move_layer, NULL);
+        }
     }
 
-	shell->output_create_listener.notify = handle_output_create;
-	wl_signal_add(&ec->output_created_signal,
-				&shell->output_create_listener);
+    shell->output_create_listener.notify = handle_output_create;
+    wl_signal_add(&ec->output_created_signal,
+        &shell->output_create_listener);
 
-	shell->output_move_listener.notify = handle_output_move;
-	wl_signal_add(&ec->output_moved_signal, &shell->output_move_listener);
+    shell->output_move_listener.notify = handle_output_move;
+    wl_signal_add(&ec->output_moved_signal, &shell->output_move_listener);
+
+    fprintf(stderr, " [DEBUG] END setup_output_destroy_handler()\n");
 }
 
 static void desktop_shell_destroy_views_on_layer(struct weston_layer *layer)
@@ -5575,19 +5615,24 @@ int wet_shell_init(struct weston_compositor *ec,
 
     shell = (struct desktop_shell*)zalloc(sizeof *shell);
     if (shell == NULL) {
+        fprintf(stderr, "   - Creating desktop shell failed!\n");
         return -1;
     }
+    fprintf(stderr, "   - desktop shell created.\n");
 
     shell->compositor = ec;
 
     if (!weston_compositor_add_destroy_listener_once(ec,
             &shell->destroy_listener, shell_destroy)) {
+        fprintf(stderr,
+            "   - weston_compositor_add_destroy_listener_once failed!\n");
         free(shell);
         return 0;
     }
 
-	shell->idle_listener.notify = idle_handler;
-	wl_signal_add(&ec->idle_signal, &shell->idle_listener);
+    fprintf(stderr, "   - Add handlers for desktop shell.\n");
+    shell->idle_listener.notify = idle_handler;
+    wl_signal_add(&ec->idle_signal, &shell->idle_listener);
 	shell->wake_listener.notify = wake_handler;
 	wl_signal_add(&ec->wake_signal, &shell->wake_listener);
 	shell->transform_listener.notify = transform_handler;
@@ -5610,14 +5655,17 @@ int wet_shell_init(struct weston_compositor *ec,
     // wl_list_init(&shell->workspaces.client_list);
 //    wl_list_init(&shell->seat_list);
 
-	if (input_panel_setup(shell) < 0)
-		return -1;
+    if (input_panel_setup(shell) < 0) {
+        return -1;
+    }
 
-	shell->text_backend = text_backend_init(ec);
-	if (!shell->text_backend)
-		return -1;
+    shell->text_backend = text_backend_init(ec);
+    if (!shell->text_backend) {
+        return -1;
+    }
 
-	shell_configuration(shell);
+    shell_configuration(shell);
+    fprintf(stderr, "   - shell_configuration(shell) done.\n");
 
 	shell->exposay.state_cur = EXPOSAY_LAYOUT_INACTIVE;
 	shell->exposay.state_target = EXPOSAY_TARGET_CANCEL;

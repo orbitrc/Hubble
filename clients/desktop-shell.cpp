@@ -1838,6 +1838,8 @@ background_destroy(struct background *background)
 static struct background* background_create(Desktop *desktop,
         Output *output)
 {
+    fprintf(stderr, " [DEBUG] BEGIN background_create()\n");
+
 	struct background *background;
 	struct weston_config_section *s;
 	char *type;
@@ -1880,6 +1882,7 @@ static struct background* background_create(Desktop *desktop,
 
 	free(type);
 
+    fprintf(stderr, " [DEBUG] END background_create()\n");
 	return background;
 }
 
@@ -2063,6 +2066,7 @@ int main(int argc, char *argv[])
         weston_config_destroy(desktop.config);
         return -1;
     }
+    fprintf(stderr, "   - display created and configured.\n");
 
 	display_set_user_data(desktop.display, &desktop);
 	display_set_global_handler(desktop.display, global_handler);
@@ -2084,6 +2088,7 @@ int main(int argc, char *argv[])
 
 	signal(SIGCHLD, sigchild_handler);
 
+    fprintf(stderr, "   - DISPLAY RUN\n");
     display_run(desktop.display);
 
     // Cleanup.

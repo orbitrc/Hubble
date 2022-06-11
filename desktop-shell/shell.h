@@ -208,7 +208,11 @@ private:
 //================
 class ShellOutput
 {
+    friend struct desktop_shell;
 public:
+    //=====================
+    // Shell Output Fade
+    //=====================
     class Fade
     {
     public:
@@ -233,7 +237,22 @@ public:
     };
 
 public:
+    ShellOutput(struct weston_output *output);
+    ~ShellOutput();
 
+    struct desktop_shell  *shell;
+    struct weston_output  *output;
+    struct exposay_output eoutput;
+    struct wl_listener    destroy_listener;
+    struct wl_list        link;
+
+    struct weston_surface *panel_surface;
+    struct wl_listener panel_surface_listener;
+
+    struct weston_surface *background_surface;
+    struct wl_listener background_surface_listener;
+
+    hb::ShellOutput::Fade fade;
 };
 
 //=================
@@ -379,23 +398,6 @@ extern DesktopShell *desktop_shell_singleton;
 
 } // namespace hb
 
-
-struct shell_output {
-    struct desktop_shell  *shell;
-    struct weston_output  *output;
-	struct exposay_output eoutput;
-    struct wl_listener    destroy_listener;
-    struct wl_list        link;
-
-	struct weston_surface *panel_surface;
-    struct wl_listener panel_surface_listener;
-
-	struct weston_surface *background_surface;
-	struct wl_listener background_surface_listener;
-
-    hb::ShellOutput::Fade fade;
-};
-
 struct desktop_shell {
     struct weston_compositor *compositor; //
     struct weston_desktop *desktop; //
@@ -476,7 +478,7 @@ struct desktop_shell {
     struct wl_listener seat_create_listener; //
     struct wl_listener output_create_listener; //
     struct wl_listener output_move_listener; //
-    pr::Vector<struct shell_output*> output_list; //
+    pr::Vector<hb::ShellOutput*> output_list; //
     pr::Vector<struct shell_seat*> seat_list; //
 
     enum weston_desktop_shell_panel_position panel_position; //
