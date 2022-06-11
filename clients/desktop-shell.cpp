@@ -151,6 +151,8 @@ public:
         desktop_singleton = this;
     }
 
+    ~Desktop();
+
     int is_painted() const;
 
     void parse_panel_position(struct weston_config_section *s);
@@ -418,6 +420,29 @@ static void panel_destroy_launcher(struct panel_launcher *launcher);
 //=====================
 // Desktop Methods
 //=====================
+
+Desktop::~Desktop()
+{
+    fprintf(stderr, " [DEBUG] BEGIN ~Desktop()\n");
+
+    // Destroy grab surface.
+    widget_destroy(this->grab_widget);
+    window_destroy(this->grab_window);
+
+    // Destroy outputs.
+    for (auto& output: this->outputs) {
+        this->remove_output(output);
+        fprintf(stderr, "   - ~Desktop() - remove_output() done.\n");
+    }
+    if (this->unlock_dialog != nullptr) {
+        delete this->unlock_dialog;
+    }
+    weston_desktop_shell_destroy(this->shell);
+    display_destroy(this->display);
+    weston_config_destroy(this->config);
+
+    fprintf(stderr, " [DEBUG] END ~Desktop()\n");
+}
 
 int Desktop::is_painted() const
 {
@@ -1893,6 +1918,10 @@ static Background* background_create(Desktop *desktop,
 	return background;
 }
 
+//========================
+// Grab Surface Methods
+//========================
+
 static int grab_surface_enter_handler(struct widget *widget,
         struct input *input, float x, float y, void *data)
 {
@@ -1903,12 +1932,6 @@ static int grab_surface_enter_handler(struct widget *widget,
     Desktop *desktop = static_cast<Desktop*>(data);
 
     return desktop->grab_cursor;
-}
-
-static void grab_surface_destroy(Desktop *desktop)
-{
-	widget_destroy(desktop->grab_widget);
-	window_destroy(desktop->grab_window);
 }
 
 static void grab_surface_create(Desktop *desktop)
@@ -1931,12 +1954,7 @@ static void grab_surface_create(Desktop *desktop)
 				 grab_surface_enter_handler);
 }
 
-static void desktop_destroy_outputs(Desktop *desktop)
-{
-    for (auto& output: desktop->outputs) {
-        delete output;
-    }
-}
+
 
 static void output_handle_geometry(void *data,
         struct wl_output *wl_output,
@@ -2100,14 +2118,6 @@ int main(int argc, char *argv[])
 
     // Cleanup.
     fprintf(stderr, " [DEBUG] desktop-shell clean up...\n");
-	grab_surface_destroy(&desktop);
-	desktop_destroy_outputs(&desktop);
-    if (desktop.unlock_dialog != nullptr) {
-        delete desktop.unlock_dialog;
-    }
-	weston_desktop_shell_destroy(desktop.shell);
-	display_destroy(desktop.display);
-	weston_config_destroy(desktop.config);
 
 	return 0;
 }
