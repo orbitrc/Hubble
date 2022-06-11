@@ -1,6 +1,6 @@
 CONFIG += link_pkgconfig
 
-PKGCONFIG += cairo
+PKGCONFIG += cairo libevdev
 
 INCLUDEPATH += include \
     .
