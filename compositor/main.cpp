@@ -55,6 +55,9 @@
 #include <libweston/version.h>
 #include "hubble.h"
 
+// Primer
+#include <primer/vector.h>
+
 #include <libweston/backend-drm.h>
 #include <libweston/backend-headless.h>
 #include <libweston/backend-rdp.h>
@@ -78,18 +81,19 @@ struct wet_output_config {
 	uint32_t transform;
 };
 
-struct wet_compositor;
-struct wet_layoutput;
-
 struct wet_head_tracker {
 	struct wl_listener head_destroy_listener;
 };
+
+namespace hb {
+class Layoutput;
+}
 
 /** User data for each weston_output */
 struct wet_output {
 	struct weston_output *output;
 	struct wl_listener output_destroy_listener;
-	struct wet_layoutput *layoutput;
+    hb::Layoutput *layoutput;
 	struct wl_list link;	/**< in wet_layoutput::output_list */
 };
 
@@ -100,34 +104,54 @@ struct wet_head_array {
 	unsigned n;				/**< the number of heads */
 };
 
+namespace hb {
+class Compositor;
+}
+
+namespace hb {
+
+//================
+// Layoutput
+//================
+
 /** A layout output
  *
  * Contains wet_outputs that are all clones (independent CRTCs).
  * Stores output layout information in the future.
  */
-struct wet_layoutput {
-	struct wet_compositor *compositor;
-	struct wl_list compositor_link;	/**< in wet_compositor::layoutput_list */
-	struct wl_list output_list;	/**< wet_output::link */
-	char *name;
-	struct weston_config_section *section;
-	struct wet_head_array add;	/**< tmp: heads to add as clones */
+class Layoutput
+{
+public:
+    hb::Compositor *compositor;
+    struct wl_list compositor_link;	/**< in wet_compositor::layoutput_list */
+    pr::Vector<struct wet_output*> outputs;	/**< wet_output::link */
+    char *name;
+    struct weston_config_section *section;
+    struct wet_head_array add;	/**< tmp: heads to add as clones */
 };
 
-struct wet_compositor {
-	struct weston_compositor *compositor;
-	struct weston_config *config;
-	struct wet_output_config *parsed_options;
-	bool drm_use_current_mode;
-	struct wl_listener heads_changed_listener;
-	int (*simple_output_configure)(struct weston_output *output);
-	bool init_failed;
-	struct wl_list layoutput_list;	/**< wet_layoutput::compositor_link */
-	struct wl_list child_process_list;
-	pid_t autolaunch_pid;
-	bool autolaunch_watch;
-	bool use_color_manager;
+//================
+// Compositor
+//================
+class Compositor
+{
+public:
+    struct weston_compositor *compositor;
+    struct weston_config *config;
+    struct wet_output_config *parsed_options;
+    bool drm_use_current_mode;
+    struct wl_listener heads_changed_listener;
+    int (*simple_output_configure)(struct weston_output *output);
+    bool init_failed;
+    pr::Vector<hb::Layoutput*> layoutputs;
+    pr::Vector<struct weston_process*> child_processes;
+    pid_t autolaunch_pid;
+    bool autolaunch_watch;
+    bool use_color_manager;
 };
+
+} // namespace hb
+
 
 static FILE *weston_logfile = NULL;
 static struct weston_log_scope *log_scope;
@@ -265,6 +289,7 @@ protocol_log_fn(void *user_data,
 		enum wl_protocol_logger_type direction,
 		const struct wl_protocol_logger_message *message)
 {
+    (void)user_data;
 	FILE *fp;
 	char *logstr;
 	size_t logsize;
@@ -349,17 +374,20 @@ protocol_log_fn(void *user_data,
 	free(logstr);
 }
 
-static struct wet_compositor *
-to_wet_compositor(struct weston_compositor *compositor)
+static hb::Compositor* to_wet_compositor(
+        struct weston_compositor *compositor)
 {
-	return weston_compositor_get_user_data(compositor);
+    hb::Compositor *ret = static_cast<hb::Compositor*>(
+        weston_compositor_get_user_data(compositor));
+    return ret;
 }
 
 static int
 sigchld_handler(int signal_number, void *data)
 {
+    (void)signal_number;
 	struct weston_process *p;
-	struct wet_compositor *wet = data;
+    hb::Compositor *wet = static_cast<hb::Compositor*>(data);
 	int status;
 	pid_t pid;
 
@@ -371,12 +399,15 @@ sigchld_handler(int signal_number, void *data)
 			continue;
 		}
 
-		wl_list_for_each(p, &wet->child_process_list, link) {
-			if (p->pid == pid)
-				break;
-		}
+        for (auto& proc: wet->child_processes) {
+            if (proc->pid == pid) {
+                p = proc;
+                break;
+            }
+        }
 
-		if (&p->link == &wet->child_process_list) {
+//		if (&p->link == &wet->child_process_list) {
+        if (false) {
 			weston_log("unknown child process exited\n");
 			continue;
 		}
@@ -480,8 +511,8 @@ WL_EXPORT void
 wet_watch_process(struct weston_compositor *compositor,
 		  struct weston_process *process)
 {
-	struct wet_compositor *wet = to_wet_compositor(compositor);
-	wl_list_insert(&wet->child_process_list, &process->link);
+    hb::Compositor *wet = to_wet_compositor(compositor);
+    wet->child_processes.push(process);
 }
 
 struct process_info {
@@ -520,7 +551,7 @@ weston_client_start(struct weston_compositor *compositor, const char *path)
 	struct process_info *pinfo;
 	struct wl_client *client;
 
-	pinfo = zalloc(sizeof *pinfo);
+    pinfo = static_cast<struct process_info*>(zalloc(sizeof *pinfo));
 	if (!pinfo)
 		return NULL;
 
@@ -558,10 +589,10 @@ log_uname(void)
 static struct wet_output_config *
 wet_init_parsed_options(struct weston_compositor *ec)
 {
-	struct wet_compositor *compositor = to_wet_compositor(ec);
+    hb::Compositor *compositor = to_wet_compositor(ec);
 	struct wet_output_config *config;
 
-	config = zalloc(sizeof *config);
+    config = static_cast<struct wet_output_config*>(zalloc(sizeof *config));
 
 	if (!config) {
 		perror("out of memory");
@@ -581,7 +612,7 @@ wet_init_parsed_options(struct weston_compositor *ec)
 WL_EXPORT struct weston_config *
 wet_get_config(struct weston_compositor *ec)
 {
-	struct wet_compositor *compositor = to_wet_compositor(ec);
+    hb::Compositor *compositor = to_wet_compositor(ec);
 
 	return compositor->config;
 }
@@ -760,7 +791,7 @@ usage(int error_code)
 
 static int on_term_signal(int signal_number, void *data)
 {
-	struct wl_display *display = data;
+    struct wl_display *display = static_cast<struct wl_display*>(data);
 
 	weston_log("caught signal %d\n", signal_number);
 	wl_display_terminate(display);
@@ -768,24 +799,26 @@ static int on_term_signal(int signal_number, void *data)
 	return 1;
 }
 
-static const char *
-clock_name(clockid_t clk_id)
+static const char* clock_name(clockid_t clk_id)
 {
-	static const char *names[] = {
-		[CLOCK_REALTIME] =		"CLOCK_REALTIME",
-		[CLOCK_MONOTONIC] =		"CLOCK_MONOTONIC",
-		[CLOCK_MONOTONIC_RAW] =		"CLOCK_MONOTONIC_RAW",
-		[CLOCK_REALTIME_COARSE] =	"CLOCK_REALTIME_COARSE",
-		[CLOCK_MONOTONIC_COARSE] =	"CLOCK_MONOTONIC_COARSE",
+    switch (clk_id) {
+    case CLOCK_REALTIME:
+        return "CLOCK_REALTIME";
+    case CLOCK_MONOTONIC:
+        return "CLOCK_MONOTONIC";
+    case CLOCK_MONOTONIC_RAW:
+        return "CLOCK_MONOTONIC_RAW";
+    case CLOCK_REALTIME_COARSE:
+        return "CLOCK_REALTIME_COARSE";
+    case CLOCK_MONOTONIC_COARSE:
+        return "CLOCK_MONOTONIC_COARSE";
 #ifdef CLOCK_BOOTTIME
-		[CLOCK_BOOTTIME] =		"CLOCK_BOOTTIME",
+    case CLOCK_BOOTTIME:
+        return "CLOCK_BOOTTIME";
 #endif
-	};
-
-	if (clk_id < 0 || (unsigned)clk_id >= ARRAY_LENGTH(names))
-		return "unknown";
-
-	return names[clk_id];
+    default:
+        return "unknown";
+    }
 }
 
 static const struct {
@@ -859,7 +892,7 @@ check_compositor_capabilities(struct weston_compositor *compositor,
 static void
 handle_primary_client_destroyed(struct wl_listener *listener, void *data)
 {
-	struct wl_client *client = data;
+    struct wl_client *client = static_cast<struct wl_client*>(data);
 
 	weston_log("Primary client died.  Closing...\n");
 
@@ -894,8 +927,8 @@ weston_create_listening_socket(struct wl_display *display, const char *socket_na
 	}
 }
 
-WL_EXPORT void *
-wet_load_module_entrypoint(const char *name, const char *entrypoint)
+WL_EXPORT
+void* wet_load_module_entrypoint(const char *name, const char *entrypoint)
 {
 	char path[PATH_MAX];
 	void *module, *init;
@@ -945,10 +978,12 @@ WL_EXPORT int
 wet_load_module(struct weston_compositor *compositor,
 	        const char *name, int *argc, char *argv[])
 {
-	int (*module_init)(struct weston_compositor *ec,
-			   int *argc, char *argv[]);
+    using load_module_entrypoint = int (*)(struct weston_compositor *ec,
+            int *argc, char *argv[]);
 
-	module_init = wet_load_module_entrypoint(name, "wet_module_init");
+    load_module_entrypoint module_init;
+
+    module_init = (load_module_entrypoint)wet_load_module_entrypoint(name, "wet_module_init");
 	if (!module_init)
 		return -1;
 	if (module_init(compositor, argc, argv) < 0)
@@ -960,10 +995,12 @@ static int
 wet_load_shell(struct weston_compositor *compositor,
 	       const char *name, int *argc, char *argv[])
 {
-	int (*shell_init)(struct weston_compositor *ec,
-			  int *argc, char *argv[]);
+    using load_module_entrypoint = int (*)(struct weston_compositor *ec,
+            int *argc, char *argv[]);
 
-	shell_init = wet_load_module_entrypoint(name, "wet_shell_init");
+    load_module_entrypoint shell_init;
+
+    shell_init = (load_module_entrypoint)wet_load_module_entrypoint(name, "wet_shell_init");
 	if (!shell_init)
 		return -1;
 	if (shell_init(compositor, argc, argv) < 0)
@@ -1096,7 +1133,7 @@ static int
 weston_compositor_init_config(struct weston_compositor *ec,
 			      struct weston_config *config)
 {
-	struct wet_compositor *compositor = to_wet_compositor(ec);
+    hb::Compositor *compositor = to_wet_compositor(ec);
 	struct xkb_rule_names xkb_names;
 	struct weston_config_section *s;
 	int repaint_msec;
@@ -1311,7 +1348,7 @@ wet_output_set_color_profile(struct weston_output *output,
 			     struct weston_config_section *section,
 			     struct weston_color_profile *parent_winsys_profile)
 {
-	struct wet_compositor *compositor = to_wet_compositor(output->compositor);
+    hb::Compositor *compositor = to_wet_compositor(output->compositor);
 	struct weston_color_profile *cprof;
 	char *icc_file = NULL;
 	bool ok;
@@ -1370,7 +1407,7 @@ wet_configure_windowed_output_from_config(struct weston_output *output,
 
 	struct weston_config *wc = wet_get_config(output->compositor);
 	struct weston_config_section *section = NULL;
-	struct wet_compositor *compositor = to_wet_compositor(output->compositor);
+    hb::Compositor *compositor = to_wet_compositor(output->compositor);
 	struct wet_output_config *parsed_options = compositor->parsed_options;
 	int width = defaults->width;
 	int height = defaults->height;
@@ -1448,7 +1485,7 @@ wet_head_tracker_destroy(struct wet_head_tracker *track)
 static void
 handle_head_destroy(struct wl_listener *listener, void *data)
 {
-	struct weston_head *head = data;
+    struct weston_head *head = static_cast<struct weston_head*>(data);
 	struct weston_output *output;
 	struct wet_head_tracker *track =
 		container_of(listener, struct wet_head_tracker,
@@ -1490,12 +1527,12 @@ wet_head_tracker_from_head(struct weston_head *head)
  * destroy the heads which calls our handler to destroy the trackers.
  */
 static void
-wet_head_tracker_create(struct wet_compositor *compositor,
+wet_head_tracker_create(hb::Compositor *compositor,
 			struct weston_head *head)
 {
 	struct wet_head_tracker *track;
 
-	track = zalloc(sizeof *track);
+    track = static_cast<struct wet_head_tracker*>(zalloc(sizeof *track));
 	if (!track)
 		return;
 
@@ -1503,8 +1540,7 @@ wet_head_tracker_create(struct wet_compositor *compositor,
 	weston_head_add_destroy_listener(head, &track->head_destroy_listener);
 }
 
-static void
-simple_head_enable(struct wet_compositor *wet, struct weston_head *head)
+static void simple_head_enable(hb::Compositor *wet, struct weston_head *head)
 {
 	struct weston_output *output;
 	int ret = 0;
@@ -1562,8 +1598,9 @@ simple_head_disable(struct weston_head *head)
 static void
 simple_heads_changed(struct wl_listener *listener, void *arg)
 {
-	struct weston_compositor *compositor = arg;
-	struct wet_compositor *wet = to_wet_compositor(compositor);
+    struct weston_compositor *compositor =
+        static_cast<struct weston_compositor*>(arg);
+    hb::Compositor *wet = to_wet_compositor(compositor);
 	struct weston_head *head = NULL;
 	bool connected;
 	bool enabled;
@@ -1593,7 +1630,7 @@ static void
 wet_set_simple_head_configurator(struct weston_compositor *compositor,
 				 int (*fn)(struct weston_output *))
 {
-	struct wet_compositor *wet = to_wet_compositor(compositor);
+    hb::Compositor *wet = to_wet_compositor(compositor);
 
 	wet->simple_output_configure = fn;
 
@@ -1740,38 +1777,39 @@ configure_input_device(struct weston_compositor *compositor,
 				   "at any time!");
 			has_enable_tap = true;
 		}
-		if (weston_config_section_get_bool(s, "enable-tap",
-						   &enable_tap, false) == 0)
+        if (weston_config_section_get_bool(s, "enable-tap",
+                &enable_tap, false) == 0) {
 			has_enable_tap = true;
-		if (has_enable_tap) {
-			weston_log("          enable-tap=%s.\n",
-				   enable_tap ? "true" : "false");
-			libinput_device_config_tap_set_enabled(device,
-							       enable_tap);
-		}
-		if (weston_config_section_get_bool(s, "tap-and-drag",
-						   &tap_and_drag, false) == 0) {
-			weston_log("          tap-and-drag=%s.\n",
-				   tap_and_drag ? "true" : "false");
-			libinput_device_config_tap_set_drag_enabled(device,
-					tap_and_drag);
-		}
-		if (weston_config_section_get_bool(s, "tap-and-drag-lock",
-					       &tap_and_drag_lock, false) == 0) {
-			weston_log("          tap-and-drag-lock=%s.\n",
-				   tap_and_drag_lock ? "true" : "false");
-			libinput_device_config_tap_set_drag_lock_enabled(
-					device, tap_and_drag_lock);
-		}
-	}
+        }
+        if (has_enable_tap) {
+            weston_log("          enable-tap=%s.\n",
+                enable_tap ? "true" : "false");
+            libinput_device_config_tap_set_enabled(device,
+                static_cast<enum libinput_config_tap_state>(enable_tap));
+        }
+        if (weston_config_section_get_bool(s, "tap-and-drag",
+                &tap_and_drag, false) == 0) {
+            weston_log("          tap-and-drag=%s.\n",
+                tap_and_drag ? "true" : "false");
+            libinput_device_config_tap_set_drag_enabled(device,
+                static_cast<enum libinput_config_drag_state>(tap_and_drag));
+        }
+        if (weston_config_section_get_bool(s, "tap-and-drag-lock",
+                &tap_and_drag_lock, false) == 0) {
+            weston_log("          tap-and-drag-lock=%s.\n",
+                tap_and_drag_lock ? "true" : "false");
+            libinput_device_config_tap_set_drag_lock_enabled(device,
+                static_cast<enum libinput_config_drag_lock_state>(tap_and_drag_lock));
+        }
+    }
 
 	if (libinput_device_config_dwt_is_available(device) &&
 	    weston_config_section_get_bool(s, "disable-while-typing",
 					   &disable_while_typing, false) == 0) {
 		weston_log("          disable-while-typing=%s.\n",
 			   disable_while_typing ? "true" : "false");
-		libinput_device_config_dwt_set_enabled(device,
-						       disable_while_typing);
+        libinput_device_config_dwt_set_enabled(device,
+            static_cast<enum libinput_config_dwt_state>(disable_while_typing));
 	}
 
 	if (libinput_device_config_middle_emulation_is_available(device) &&
@@ -1779,8 +1817,8 @@ configure_input_device(struct weston_compositor *compositor,
 					   &middle_emulation, false) == 0) {
 		weston_log("          middle-button-emulation=%s\n",
 			   middle_emulation ? "true" : "false");
-		libinput_device_config_middle_emulation_set_enabled(
-				device, middle_emulation);
+        libinput_device_config_middle_emulation_set_enabled(device,
+            static_cast<enum libinput_config_middle_emulation_state>(middle_emulation));
 	}
 
 	if (libinput_device_config_left_handed_is_available(device) &&
@@ -1808,7 +1846,7 @@ static int
 drm_backend_output_configure(struct weston_output *output,
 			     struct weston_config_section *section)
 {
-	struct wet_compositor *wet = to_wet_compositor(output->compositor);
+    hb::Compositor *wet = to_wet_compositor(output->compositor);
 	const struct weston_drm_output_api *api;
 	enum weston_drm_backend_output_mode mode =
 		WESTON_DRM_BACKEND_OUTPUT_PREFERRED;
@@ -1916,31 +1954,28 @@ drm_config_find_controlling_output_section(struct weston_config *config,
 	return section;
 }
 
-static struct wet_layoutput *
-wet_compositor_create_layoutput(struct wet_compositor *compositor,
-				const char *name,
-				struct weston_config_section *section)
+static hb::Layoutput* wet_compositor_create_layoutput(hb::Compositor *compositor,
+        const char *name,
+        struct weston_config_section *section)
 {
-	struct wet_layoutput *lo;
+    hb::Layoutput *lo;
 
-	lo = zalloc(sizeof *lo);
+    lo = static_cast<hb::Layoutput*>(zalloc(sizeof *lo));
 	if (!lo)
 		return NULL;
 
-	lo->compositor = compositor;
-	wl_list_insert(compositor->layoutput_list.prev, &lo->compositor_link);
-	wl_list_init(&lo->output_list);
+    lo->compositor = compositor;
+    compositor->layoutputs.push(lo);
 	lo->name = strdup(name);
 	lo->section = section;
 
 	return lo;
 }
 
-static void
-wet_layoutput_destroy(struct wet_layoutput *lo)
+static void wet_layoutput_destroy(hb::Layoutput *lo)
 {
-	wl_list_remove(&lo->compositor_link);
-	assert(wl_list_empty(&lo->output_list));
+    wl_list_remove(&lo->compositor_link);
+    assert(lo->outputs.length() == 0);
 	free(lo->name);
 	free(lo);
 }
@@ -1958,11 +1993,11 @@ wet_output_handle_destroy(struct wl_listener *listener, void *data)
 }
 
 static struct wet_output *
-wet_layoutput_create_output(struct wet_layoutput *lo, const char *name)
+wet_layoutput_create_output(hb::Layoutput *lo, const char *name)
 {
 	struct wet_output *output;
 
-	output = zalloc(sizeof *output);
+    output = static_cast<struct wet_output*>(zalloc(sizeof *output));
 	if (!output)
 		return NULL;
 
@@ -1975,7 +2010,7 @@ wet_layoutput_create_output(struct wet_layoutput *lo, const char *name)
 	}
 
 	output->layoutput = lo;
-	wl_list_insert(lo->output_list.prev, &output->link);
+    lo->outputs.push(output);
 	output->output_destroy_listener.notify = wet_output_handle_destroy;
 	weston_output_add_destroy_listener(output->output,
 					   &output->output_destroy_listener);
@@ -2014,25 +2049,25 @@ wet_output_destroy(struct wet_output *output)
 	free(output);
 }
 
-static struct wet_layoutput *
-wet_compositor_find_layoutput(struct wet_compositor *wet, const char *name)
+static hb::Layoutput* wet_compositor_find_layoutput(hb::Compositor *wet,
+        const char *name)
 {
-	struct wet_layoutput *lo;
+    for (auto& layoutput: wet->layoutputs) {
+        if (strcmp(layoutput->name, name) == 0) {
+            return layoutput;
+        }
+    }
 
-	wl_list_for_each(lo, &wet->layoutput_list, compositor_link)
-		if (strcmp(lo->name, name) == 0)
-			return lo;
-
-	return NULL;
+    return NULL;
 }
 
 static void
-wet_compositor_layoutput_add_head(struct wet_compositor *wet,
+wet_compositor_layoutput_add_head(hb::Compositor *wet,
 				  const char *output_name,
 				  struct weston_config_section *section,
 				  struct weston_head *head)
 {
-	struct wet_layoutput *lo;
+    hb::Layoutput *lo;
 
 	lo = wet_compositor_find_layoutput(wet, output_name);
 	if (!lo) {
@@ -2048,23 +2083,18 @@ wet_compositor_layoutput_add_head(struct wet_compositor *wet,
 }
 
 static void
-wet_compositor_destroy_layout(struct wet_compositor *wet)
+wet_compositor_destroy_layout(hb::Compositor *wet)
 {
-	struct wet_layoutput *lo, *lo_tmp;
-	struct wet_output *output, *output_tmp;
-
-	wl_list_for_each_safe(lo, lo_tmp,
-			      &wet->layoutput_list, compositor_link) {
-		wl_list_for_each_safe(output, output_tmp,
-				      &lo->output_list, link) {
-			wet_output_destroy(output);
-		}
-		wet_layoutput_destroy(lo);
-	}
+    for (auto& layoutput: wet->layoutputs) {
+        for (auto& output: layoutput->outputs) {
+            wet_output_destroy(output);
+        }
+        wet_layoutput_destroy(layoutput);
+    }
 }
 
 static void
-drm_head_prepare_enable(struct wet_compositor *wet,
+drm_head_prepare_enable(hb::Compositor *wet,
 			struct weston_head *head)
 {
 	const char *name = weston_head_get_name(head);
@@ -2099,7 +2129,7 @@ drm_head_prepare_enable(struct wet_compositor *wet,
 }
 
 static bool
-drm_head_should_force_enable(struct wet_compositor *wet,
+drm_head_should_force_enable(hb::Compositor *wet,
 			     struct weston_head *head)
 {
 	const char *name = weston_head_get_name(head);
@@ -2164,8 +2194,8 @@ drm_try_enable(struct weston_output *output,
 	return 0;
 }
 
-static int
-drm_try_attach_enable(struct weston_output *output, struct wet_layoutput *lo)
+static int drm_try_attach_enable(struct weston_output *output,
+        hb::Layoutput *lo)
 {
 	struct wet_head_array failed = {};
 	unsigned i;
@@ -2191,8 +2221,7 @@ drm_try_attach_enable(struct weston_output *output, struct wet_layoutput *lo)
 	return 0;
 }
 
-static int
-drm_process_layoutput(struct wet_compositor *wet, struct wet_layoutput *lo)
+static int drm_process_layoutput(hb::Compositor *wet, hb::Layoutput *lo)
 {
 	struct wet_output *output, *tmp;
 	char *name = NULL;
@@ -2206,7 +2235,7 @@ drm_process_layoutput(struct wet_compositor *wet, struct wet_layoutput *lo)
 	 *     try attach, try enable
 	 */
 
-	wl_list_for_each_safe(output, tmp, &lo->output_list, link) {
+    for (auto& output: lo->outputs) {
 		struct wet_head_array failed = {};
 
 		if (!output->output) {
@@ -2226,8 +2255,8 @@ drm_process_layoutput(struct wet_compositor *wet, struct wet_layoutput *lo)
 	if (!weston_compositor_find_output_by_name(wet->compositor, lo->name))
 		name = strdup(lo->name);
 
-	while (lo->add.n > 0) {
-		if (!wl_list_empty(&lo->output_list)) {
+    while (lo->add.n > 0) {
+        if (lo->outputs.length() == 0) {
 			weston_log("Error: independent-CRTC clone mode is not implemented.\n");
 			return -1;
 		}
@@ -2255,20 +2284,20 @@ drm_process_layoutput(struct wet_compositor *wet, struct wet_layoutput *lo)
 }
 
 static int
-drm_process_layoutputs(struct wet_compositor *wet)
+drm_process_layoutputs(hb::Compositor *wet)
 {
-	struct wet_layoutput *lo;
-	int ret = 0;
+    int ret = 0;
 
-	wl_list_for_each(lo, &wet->layoutput_list, compositor_link) {
-		if (lo->add.n == 0)
-			continue;
+    for (auto& layoutput: wet->layoutputs) {
+        if (layoutput->add.n == 0) {
+            continue;
+        }
 
-		if (drm_process_layoutput(wet, lo) < 0) {
-			lo->add = (struct wet_head_array){};
-			ret = -1;
-		}
-	}
+        if (drm_process_layoutput(wet, layoutput) < 0) {
+            layoutput->add = (struct wet_head_array){};
+            ret = -1;
+        }
+    }
 
 	return ret;
 }
@@ -2297,8 +2326,10 @@ drm_head_disable(struct weston_head *head)
 static void
 drm_heads_changed(struct wl_listener *listener, void *arg)
 {
-	struct weston_compositor *compositor = arg;
-	struct wet_compositor *wet = to_wet_compositor(compositor);
+    (void)listener;
+    struct weston_compositor *compositor =
+        static_cast<struct weston_compositor*>(arg);
+    hb::Compositor *wet = to_wet_compositor(compositor);
 	struct weston_head *head = NULL;
 	bool connected;
 	bool enabled;
@@ -2447,7 +2478,10 @@ static void
 load_remoting(struct weston_compositor *c, struct weston_config *wc)
 {
 	const struct weston_remoting_api *api = NULL;
-	int (*module_init)(struct weston_compositor *ec);
+
+    using load_module = int (*)(struct weston_compositor *ec);
+
+    load_module module_init;
 	struct weston_config_section *section = NULL;
 	const char *section_name;
 
@@ -2466,7 +2500,7 @@ load_remoting(struct weston_compositor *c, struct weston_config *wc)
 							 "remoting",
 							 &module_name,
 							 "remoting-plugin.so");
-			module_init = weston_load_module(module_name,
+            module_init = (load_module)weston_load_module(module_name,
 							 "weston_module_init");
 			free(module_name);
 			if (!module_init) {
@@ -2577,7 +2611,10 @@ static void
 load_pipewire(struct weston_compositor *c, struct weston_config *wc)
 {
 	const struct weston_pipewire_api *api = NULL;
-	int (*module_init)(struct weston_compositor *ec);
+
+    using load_module = int (*)(struct weston_compositor *ec);
+
+    load_module module_init;
 	struct weston_config_section *section = NULL;
 	const char *section_name;
 
@@ -2596,7 +2633,7 @@ load_pipewire(struct weston_compositor *c, struct weston_config *wc)
 							 "pipewire",
 							 &module_name,
 							 "pipewire-plugin.so");
-			module_init = weston_load_module(module_name,
+            module_init = (load_module)weston_load_module(module_name,
 							 "weston_module_init");
 			free(module_name);
 			if (!module_init) {
@@ -2623,7 +2660,7 @@ load_drm_backend(struct weston_compositor *c,
 {
 	struct weston_drm_backend_config config = {{ 0, }};
 	struct weston_config_section *section;
-	struct wet_compositor *wet = to_wet_compositor(c);
+    hb::Compositor *wet = to_wet_compositor(c);
 	bool without_input = false;
 	int ret = 0;
 
@@ -2763,7 +2800,7 @@ load_headless_backend(struct weston_compositor *c,
 static int
 rdp_backend_output_configure(struct weston_output *output)
 {
-	struct wet_compositor *compositor = to_wet_compositor(output->compositor);
+    hb::Compositor *compositor = to_wet_compositor(output->compositor);
 	struct wet_output_config *parsed_options = compositor->parsed_options;
 	const struct weston_rdp_output_api *api = weston_rdp_output_get_api(output->compositor);
 	int width = 640;
@@ -3178,15 +3215,15 @@ copy_command_line(int argc, char * const argv[])
 }
 
 #if !defined(BUILD_XWAYLAND)
-int
-wet_load_xwayland(struct weston_compositor *comp)
+int wet_load_xwayland(struct weston_compositor *comp)
 {
-	return -1;
+    (void)comp;
+    return -1;
 }
 #endif
 
 static int
-execute_autolaunch(struct wet_compositor *wet, struct weston_config *config)
+execute_autolaunch(hb::Compositor *wet, struct weston_config *config)
 {
 	int ret = -1;
 	pid_t tmp_pid = -1;
@@ -3241,12 +3278,15 @@ weston_log_setup_scopes(struct weston_log_context *log_ctx,
 	free(tokenize);
 }
 
-static void
-flight_rec_key_binding_handler(struct weston_keyboard *keyboard,
-			       const struct timespec *time, uint32_t key,
-			       void *data)
+static void flight_rec_key_binding_handler(struct weston_keyboard *keyboard,
+        const struct timespec *time, uint32_t key,
+        void *data)
 {
-	struct weston_log_subscriber *flight_rec = data;
+    (void)keyboard;
+    (void)time;
+    (void)key;
+    struct weston_log_subscriber *flight_rec =
+        static_cast<weston_log_subscriber*>(data);
 	weston_log_subscriber_display_flight_rec(flight_rec);
 }
 
@@ -3299,11 +3339,14 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 	struct wl_client *primary_client;
 	struct wl_listener primary_client_destroyed;
 	struct weston_seat *seat;
-	struct wet_compositor wet = { 0 };
+    hb::Compositor wet;
 	struct weston_log_context *log_ctx = NULL;
 	struct weston_log_subscriber *logger = NULL;
 	struct weston_log_subscriber *flight_rec = NULL;
 	sigset_t mask;
+
+    // Construct Compositor.
+    wet.init_failed = false;
 
 	bool wait_for_debugger = false;
 	struct wl_protocol_logger *protologger = NULL;
@@ -3327,8 +3370,6 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 		{ WESTON_OPTION_STRING, "logger-scopes", 'l', &log_scopes },
 		{ WESTON_OPTION_STRING, "flight-rec-scopes", 'f', &flight_rec_scopes },
 	};
-
-	wl_list_init(&wet.layoutput_list);
 
 	os_fd_set_cloexec(fileno(stdin));
 
@@ -3373,11 +3414,11 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 				       log_scopes, flight_rec_scopes);
 
 	weston_log("%s\n"
-		   STAMP_SPACE "%s\n"
-		   STAMP_SPACE "Bug reports to: %s\n"
-		   STAMP_SPACE "Build: %s\n",
-		   PACKAGE_STRING, PACKAGE_URL, PACKAGE_BUGREPORT,
-		   BUILD_ID);
+            STAMP_SPACE "%s\n"
+            STAMP_SPACE "Bug reports to: %s\n"
+            STAMP_SPACE "Build: %s\n",
+            PACKAGE_STRING, PACKAGE_URL, PACKAGE_BUGREPORT,
+            BUILD_ID);
 	weston_log("Command line: %s\n", cmdline);
 	free(cmdline);
 	log_uname();
@@ -3399,7 +3440,6 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 	signals[2] = wl_event_loop_add_signal(loop, SIGQUIT, on_term_signal,
 					      display);
 
-	wl_list_init(&wet.child_process_list);
 	signals[3] = wl_event_loop_add_signal(loop, SIGCHLD, sigchld_handler,
 					      &wet);
 
@@ -3427,9 +3467,9 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 	}
 	if (wait_for_debugger) {
 		weston_log("Weston PID is %ld - "
-			   "waiting for debugger, send SIGCONT to continue...\n",
-			   (long)getpid());
-		raise(SIGSTOP);
+            "waiting for debugger, send SIGCONT to continue...\n",
+            (long)getpid());
+        raise(SIGSTOP);
 	}
 
 	if (!backend) {
@@ -3450,6 +3490,7 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 					     "Wayland protocol dump for all clients.\n",
 					     NULL, NULL, NULL);
 
+    fprintf(stderr, "   - MIDDLE wet_main(). OK...\n");
 	protologger = wl_display_add_protocol_logger(display,
 						     protocol_log_fn,
 						     NULL);
@@ -3478,9 +3519,13 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 		goto out;
 	}
 
-	weston_compositor_flush_heads_changed(wet.compositor);
-	if (wet.init_failed)
-		goto out;
+    fprintf(stderr, "   - MIDDLE wet_main(). Error!\n");
+
+    weston_compositor_flush_heads_changed(wet.compositor);
+    if (wet.init_failed) {
+        fprintf(stderr, "   - MIDDLE wet.init_failed is true.\n");
+        goto out;
+    }
 
 	if (idle_time < 0)
 		weston_config_section_get_int(section, "idle-time", &idle_time, -1);
