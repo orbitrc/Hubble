@@ -5134,10 +5134,12 @@ void shell_for_each_layer(struct desktop_shell *shell,
         shell_for_each_layer_func_t func, void *data)
 {
     fprintf(stderr, " [DEBUG] BEGIN shell_for_each_layer() shell: %p\n", shell);
+    fprintf(stderr,
+        "   - shell->fullscreen_layer: %p\n", &shell->fullscreen_layer);
 
-    fprintf(stderr, "  - func. shell->fullscreen_layer.\n");
+    fprintf(stderr, "   - func. shell->fullscreen_layer.\n");
     func(shell, &shell->fullscreen_layer, data);
-    fprintf(stderr, "  - func. shell->panel_layer.\n");
+    fprintf(stderr, "   - func. shell->panel_layer.\n");
     func(shell, &shell->panel_layer, data);
     func(shell, &shell->background_layer, data);
     func(shell, &shell->lock_layer, data);
@@ -5157,11 +5159,18 @@ static void shell_output_changed_move_layer(struct desktop_shell *shell,
 {
     (void)shell;
     (void)data;
-	struct weston_view *view;
+    struct weston_view *view = nullptr;
 
-	wl_list_for_each(view, &layer->view_list.link, layer_link.link)
-		shell_reposition_view_on_output_change(view);
+    fprintf(stderr,
+        " [DEBUG] BEGIN shell_output_changed_move_layer() layer: %p\n", layer);
 
+    wl_list_for_each(view, &layer->view_list.link, layer_link.link) {
+        fprintf(stderr, "   - view: %p\n", view);
+        shell_reposition_view_on_output_change(view);
+    }
+
+    fprintf(stderr,
+        " [DEBUG] END shell_output_changed_move_layer()\n");
 }
 
 static void shell_output_destroy(struct shell_output *shell_output)
@@ -5169,22 +5178,22 @@ static void shell_output_destroy(struct shell_output *shell_output)
     struct desktop_shell *shell = shell_output->shell;
     fprintf(stderr, " [DEBUG] BEGIN shell_output_destroy() shell: %p\n", shell);
 
-    fprintf(stderr, " - shell_for_each_layer.\n");
+    fprintf(stderr, "   - shell_for_each_layer.\n");
     shell_for_each_layer(shell, shell_output_changed_move_layer, NULL);
 
-    fprintf(stderr, " - if. animation destroy.\n");
+    fprintf(stderr, "   - if. animation destroy.\n");
     if (shell_output->fade.animation()) {
         weston_view_animation_destroy(shell_output->fade.animation());
         shell_output->fade.set_animation(nullptr);
     }
 
-    fprintf(stderr, " - if. face view surface destroy.\n");
+    fprintf(stderr, "   - if. face view surface destroy.\n");
     if (shell_output->fade.view()) {
         // destroys the view as well.
         weston_surface_destroy(shell_output->fade.view()->surface);
     }
 
-    fprintf(stderr, " - if. fade startup timer.\n");
+    fprintf(stderr, "   - if. fade startup timer.\n");
     if (shell_output->fade.startup_timer) {
         wl_event_source_remove(shell_output->fade.startup_timer);
     }
@@ -5196,19 +5205,22 @@ static void shell_output_destroy(struct shell_output *shell_output)
         wl_list_remove(&shell_output->background_surface_listener.link);
     }
     wl_list_remove(&shell_output->destroy_listener.link);
-    fprintf(stderr, " [DEBUG] shell_output_destroy() - before wl_list_remove\n");
+    fprintf(stderr, "   - shell_output_destroy() - before wl_list_remove\n");
 //    wl_list_remove(&shell_output->link); // this line occurs error.
     free(shell_output);
     fprintf(stderr, " [DEBUG] END shell_output_destroy()\n");
 }
 
-static void
-handle_output_destroy(struct wl_listener *listener, void *data)
+static void handle_output_destroy(struct wl_listener *listener, void *data)
 {
-	struct shell_output *shell_output =
-		container_of(listener, struct shell_output, destroy_listener);
+    fprintf(stderr, " [DEBUG] BEGIN handle_output_destroy()\n");
+
+    struct shell_output *shell_output =
+        container_of(listener, struct shell_output, destroy_listener);
 
     shell_output_destroy(shell_output);
+
+    fprintf(stderr, " [DEBUG] END handle_output_destroy()\n");
 }
 
 static void
@@ -5346,6 +5358,8 @@ static void desktop_shell_destroy_views_on_layer(struct weston_layer *layer)
 
 static void shell_destroy(struct wl_listener *listener, void *data)
 {
+    fprintf(stderr, " [DEBUG] BEGIN shell_destroy()\n");
+
     (void)data;
 	struct desktop_shell *shell =
 		container_of(listener, struct desktop_shell, destroy_listener);
@@ -5371,9 +5385,9 @@ static void shell_destroy(struct wl_listener *listener, void *data)
 //	wl_list_for_each_safe(shell_output, tmp, &shell->output_list, link)
 //		shell_output_destroy(shell_output);
     for (auto& shell_output: shell->output_list) {
-        fprintf(stderr, " [DEBUG] shell_destroy() - loop. shell_output: %p\n", shell_output);
+        fprintf(stderr, "   - shell_destroy() - loop. shell_output: %p\n", shell_output);
         shell_output_destroy(shell_output);
-        fprintf(stderr, " [DEBUG] shell_destroy() - loop. shell destroyed.\n");
+        fprintf(stderr, "   - shell_destroy() - loop. shell destroyed.\n");
     }
 
 	wl_list_remove(&shell->output_create_listener.link);
@@ -5405,6 +5419,7 @@ static void shell_destroy(struct wl_listener *listener, void *data)
 
 	free(shell->client);
 	free(shell);
+    fprintf(stderr, " [DEBUG] END shell_destroy()\n");
 }
 
 static void shell_add_bindings(struct weston_compositor *ec,
@@ -5607,7 +5622,7 @@ int wet_shell_init(struct weston_compositor *ec,
 	shell->exposay.state_cur = EXPOSAY_LAYOUT_INACTIVE;
 	shell->exposay.state_target = EXPOSAY_TARGET_CANCEL;
 
-    fprintf(stderr, " [DEBUG] workspaces.num == %d\n", shell->workspaces.num);
+    fprintf(stderr, "   - workspaces.num == %d\n", shell->workspaces.num);
     for (unsigned int i = 0; i < shell->workspaces.num; i++) {
         // pws = (struct workspace**)wl_array_add(&shell->workspaces.array, sizeof *pws);
         /*
@@ -5617,12 +5632,11 @@ int wet_shell_init(struct weston_compositor *ec,
         */
 
         auto ws = new hb::Workspace(shell);
-        fprintf(stderr, " [DEBUG] is pointer same? %p\n", (void*)ws);
         if (ws == nullptr) {
             return -1;
         }
         shell->workspaces.array.push((hb::Workspace* const&)ws);
-        fprintf(stderr, " [DEBUG] workspace created and pushed to vector.\n");
+        fprintf(stderr, "   - workspace created and pushed to vector.\n");
     }
 	activate_workspace(shell, 0);
 
