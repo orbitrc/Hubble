@@ -299,7 +299,17 @@ static void panel_add_launcher(Panel *panel,
 // Background
 //===============
 
-struct background {
+class Background {
+public:
+    enum class Type {
+        Scale,
+        ScaleCrop,
+        Tile,
+        Centered,
+        Invalid,
+    };
+
+public:
 	struct surface base;
 
     Output *owner;
@@ -309,13 +319,13 @@ struct background {
 	int painted;
 
 	char *image;
-	int type;
+    Background::Type type;
 	uint32_t color;
 };
 
-static struct background* background_create(Desktop *desktop, Output *output);
+static Background* background_create(Desktop *desktop, Output *output);
 
-static void background_destroy(struct background *background);
+static void background_destroy(Background *background);
 
 //===============
 // Output
@@ -374,9 +384,9 @@ public:
 
     void set_panel(Panel *panel);
 
-    struct background* background();
+    Background* background();
 
-    void set_background(struct background *background);
+    void set_background(Background *background);
 
 private:
     struct wl_output *_wl_output;
@@ -384,7 +394,7 @@ private:
     int _x;
     int _y;
     Panel *_panel;
-    struct background *_background;
+    Background *_background;
 };
 
 //==================
@@ -625,12 +635,12 @@ void Output::set_panel(Panel *panel)
     this->_panel = panel;
 }
 
-struct background* Output::background()
+Background* Output::background()
 {
     return this->_background;
 }
 
-void Output::set_background(struct background *background)
+void Output::set_background(Background *background)
 {
     this->_background = background;
 }
@@ -1324,16 +1334,9 @@ static void panel_add_launcher(Panel *panel, const char *icon, const char *path)
 				  panel_launcher_motion_handler);
 }
 
-enum {
-	BACKGROUND_SCALE,
-	BACKGROUND_SCALE_CROP,
-	BACKGROUND_TILE,
-	BACKGROUND_CENTERED
-};
-
 static void background_draw(struct widget *widget, void *data)
 {
-    struct background *background = static_cast<struct background*>(data);
+    Background *background = static_cast<Background*>(data);
     cairo_surface_t *surface, *image;
     cairo_pattern_t *pattern;
     cairo_matrix_t matrix;
@@ -1364,7 +1367,7 @@ static void background_draw(struct widget *widget, void *data)
 		free(name);
 	}
 
-	if (image && background->type != -1) {
+    if (image && background->type != Background::Type::Invalid) {
 		im_w = cairo_image_surface_get_width(image);
 		im_h = cairo_image_surface_get_height(image);
 		sx = im_w / allocation.width;
@@ -1373,12 +1376,14 @@ static void background_draw(struct widget *widget, void *data)
 		pattern = cairo_pattern_create_for_surface(image);
 
 		switch (background->type) {
-		case BACKGROUND_SCALE:
+        case Background::Type::Invalid:
+            break;
+        case Background::Type::Scale:
 			cairo_matrix_init_scale(&matrix, sx, sy);
 			cairo_pattern_set_matrix(pattern, &matrix);
 			cairo_pattern_set_extend(pattern, CAIRO_EXTEND_PAD);
 			break;
-		case BACKGROUND_SCALE_CROP:
+        case Background::Type::ScaleCrop:
 			s = (sx < sy) ? sx : sy;
 			/* align center */
 			tx = (im_w - s * allocation.width) * 0.5;
@@ -1388,10 +1393,10 @@ static void background_draw(struct widget *widget, void *data)
 			cairo_pattern_set_matrix(pattern, &matrix);
 			cairo_pattern_set_extend(pattern, CAIRO_EXTEND_PAD);
 			break;
-		case BACKGROUND_TILE:
+        case Background::Type::Tile:
 			cairo_pattern_set_extend(pattern, CAIRO_EXTEND_REPEAT);
 			break;
-		case BACKGROUND_CENTERED:
+        case Background::Type::Centered:
 			s = (sx < sy) ? sx : sy;
 			if (s < 1.0)
 				s = 1.0;
@@ -1481,8 +1486,8 @@ static void background_configure(void *data,
     (void)desktop_shell;
     (void)edges;
     Output *owner;
-	struct background *background =
-		(struct background *) window_get_user_data(window);
+    Background *background =
+        (Background*) window_get_user_data(window);
 
 	if (width < 1 || height < 1) {
 		/* Shell plugin configures 0x0 for redundant background. */
@@ -1744,12 +1749,15 @@ static void unlock_dialog_finish(struct task *task, uint32_t events)
     desktop->unlock_dialog = nullptr;
 }
 
-static void
-desktop_shell_configure(void *data,
-			struct weston_desktop_shell *desktop_shell,
-			uint32_t edges,
-			struct wl_surface *surface,
-			int32_t width, int32_t height)
+//===========================================
+// weston_desktop_shell_listener handlers
+//===========================================
+
+static void desktop_shell_configure(void *data,
+        struct weston_desktop_shell *desktop_shell,
+        uint32_t edges,
+        struct wl_surface *surface,
+        int32_t width, int32_t height)
 {
 	struct window *window = (struct window*)wl_surface_get_user_data(surface);
 	struct surface *s = (struct surface*)window_get_user_data(window);
@@ -1819,14 +1827,14 @@ static void desktop_shell_grab_cursor(void *data,
 	}
 }
 
-static const struct weston_desktop_shell_listener listener = {
-	desktop_shell_configure,
-	desktop_shell_prepare_lock_surface,
-	desktop_shell_grab_cursor
+static const struct weston_desktop_shell_listener desktop_shell_listener = {
+    desktop_shell_configure,
+    desktop_shell_prepare_lock_surface,
+    desktop_shell_grab_cursor,
 };
 
-static void
-background_destroy(struct background *background)
+
+static void background_destroy(Background *background)
 {
 	widget_destroy(background->widget);
 	window_destroy(background->window);
@@ -1835,16 +1843,16 @@ background_destroy(struct background *background)
 	free(background);
 }
 
-static struct background* background_create(Desktop *desktop,
+static Background* background_create(Desktop *desktop,
         Output *output)
 {
     fprintf(stderr, " [DEBUG] BEGIN background_create()\n");
 
-	struct background *background;
+    Background *background;
 	struct weston_config_section *s;
 	char *type;
 
-	background = (struct background*)xzalloc(sizeof *background);
+    background = (Background*)xzalloc(sizeof *background);
 	background->owner = output;
 	background->base.configure = background_configure;
 	background->window = window_create_custom(desktop->display);
@@ -1867,17 +1875,16 @@ static struct background* background_create(Desktop *desktop,
 	}
 
 	if (strcmp(type, "scale") == 0) {
-		background->type = BACKGROUND_SCALE;
+        background->type = Background::Type::Scale;
 	} else if (strcmp(type, "scale-crop") == 0) {
-		background->type = BACKGROUND_SCALE_CROP;
+        background->type = Background::Type::ScaleCrop;
 	} else if (strcmp(type, "tile") == 0) {
-		background->type = BACKGROUND_TILE;
+        background->type = Background::Type::Tile;
 	} else if (strcmp(type, "centered") == 0) {
-		background->type = BACKGROUND_CENTERED;
+        background->type = Background::Type::Centered;
 	} else {
-		background->type = -1;
-		fprintf(stderr, "invalid background-type: %s\n",
-			type);
+        background->type = Background::Type::Invalid;
+        fprintf(stderr, "invalid background-type: %s\n", type);
 	}
 
 	free(type);
@@ -2014,7 +2021,7 @@ static void global_handler(struct display *display, uint32_t id,
                 1)
         );
         weston_desktop_shell_add_listener(desktop->shell,
-            &listener,
+            &desktop_shell_listener,
             desktop);
     } else if (!strcmp(interface, "wl_output")) {
         new Output(id);
