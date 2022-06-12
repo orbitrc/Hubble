@@ -30,6 +30,10 @@
 
 #include <sys/types.h>
 
+#ifdef  __cplusplus
+extern "C" {
+#endif
+
 int
 os_fd_set_cloexec(int fd);
 
@@ -70,5 +74,9 @@ os_ro_anonymous_file_get_fd(struct ro_anonymous_file *file,
 
 int
 os_ro_anonymous_file_put_fd(int fd);
+
+#ifdef  __cplusplus
+}
+#endif
 
 #endif /* OS_COMPATIBILITY_H */

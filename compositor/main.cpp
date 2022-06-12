@@ -352,14 +352,15 @@ protocol_log_fn(void *user_data,
 static struct wet_compositor *
 to_wet_compositor(struct weston_compositor *compositor)
 {
-	return weston_compositor_get_user_data(compositor);
+    return static_cast<struct wet_compositor*>(
+        weston_compositor_get_user_data(compositor));
 }
 
 static int
 sigchld_handler(int signal_number, void *data)
 {
 	struct weston_process *p;
-	struct wet_compositor *wet = data;
+    struct wet_compositor *wet = static_cast<struct wet_compositor*>(data);
 	int status;
 	pid_t pid;
 
@@ -520,7 +521,7 @@ weston_client_start(struct weston_compositor *compositor, const char *path)
 	struct process_info *pinfo;
 	struct wl_client *client;
 
-	pinfo = zalloc(sizeof *pinfo);
+    pinfo = static_cast<struct process_info*>(zalloc(sizeof *pinfo));
 	if (!pinfo)
 		return NULL;
 
@@ -561,7 +562,7 @@ wet_init_parsed_options(struct weston_compositor *ec)
 	struct wet_compositor *compositor = to_wet_compositor(ec);
 	struct wet_output_config *config;
 
-	config = zalloc(sizeof *config);
+    config = static_cast<struct wet_output_config*>(zalloc(sizeof *config));
 
 	if (!config) {
 		perror("out of memory");
@@ -760,7 +761,7 @@ usage(int error_code)
 
 static int on_term_signal(int signal_number, void *data)
 {
-	struct wl_display *display = data;
+    struct wl_display *display = static_cast<struct wl_display*>(data);
 
 	weston_log("caught signal %d\n", signal_number);
 	wl_display_terminate(display);
@@ -771,21 +772,22 @@ static int on_term_signal(int signal_number, void *data)
 static const char *
 clock_name(clockid_t clk_id)
 {
-	static const char *names[] = {
-		[CLOCK_REALTIME] =		"CLOCK_REALTIME",
-		[CLOCK_MONOTONIC] =		"CLOCK_MONOTONIC",
-		[CLOCK_MONOTONIC_RAW] =		"CLOCK_MONOTONIC_RAW",
-		[CLOCK_REALTIME_COARSE] =	"CLOCK_REALTIME_COARSE",
-		[CLOCK_MONOTONIC_COARSE] =	"CLOCK_MONOTONIC_COARSE",
+    switch (clk_id) {
+    case CLOCK_REALTIME:
+        return "CLOCK_REALTIME";
+    case CLOCK_MONOTONIC:
+        return "CLOCK_MONOTONIC";
+    case CLOCK_MONOTONIC_RAW:
+        return "CLOCK_MONOTONIC_RAW";
+    case CLOCK_REALTIME_COARSE:
+        return "CLOCK_REALTIME_COARSE";
+    case CLOCK_MONOTONIC_COARSE:
+        return "CLOCK_MONOTONIC_COARSE";
 #ifdef CLOCK_BOOTTIME
-		[CLOCK_BOOTTIME] =		"CLOCK_BOOTTIME",
+    case CLOCK_BOOTTIME:
+        return "CLOCK_BOOTTIME";
 #endif
-	};
-
-	if (clk_id < 0 || (unsigned)clk_id >= ARRAY_LENGTH(names))
-		return "unknown";
-
-	return names[clk_id];
+    }
 }
 
 static const struct {
@@ -859,7 +861,7 @@ check_compositor_capabilities(struct weston_compositor *compositor,
 static void
 handle_primary_client_destroyed(struct wl_listener *listener, void *data)
 {
-	struct wl_client *client = data;
+    struct wl_client *client = static_cast<struct wl_client*>(data);
 
 	weston_log("Primary client died.  Closing...\n");
 
@@ -945,10 +947,11 @@ WL_EXPORT int
 wet_load_module(struct weston_compositor *compositor,
 	        const char *name, int *argc, char *argv[])
 {
-	int (*module_init)(struct weston_compositor *ec,
-			   int *argc, char *argv[]);
+    using load_module_entrypoint = int (*)(struct weston_compositor *ec,
+            int *argc, char *argv[]);
+    load_module_entrypoint module_init;
 
-	module_init = wet_load_module_entrypoint(name, "wet_module_init");
+    module_init = (load_module_entrypoint)wet_load_module_entrypoint(name, "wet_module_init");
 	if (!module_init)
 		return -1;
 	if (module_init(compositor, argc, argv) < 0)
@@ -960,10 +963,11 @@ static int
 wet_load_shell(struct weston_compositor *compositor,
 	       const char *name, int *argc, char *argv[])
 {
-	int (*shell_init)(struct weston_compositor *ec,
-			  int *argc, char *argv[]);
+    using load_module_entrypoint = int (*)(struct weston_compositor *ec,
+            int *argc, char *argv[]);
+    load_module_entrypoint shell_init;
 
-	shell_init = wet_load_module_entrypoint(name, "wet_shell_init");
+    shell_init = (load_module_entrypoint)wet_load_module_entrypoint(name, "wet_shell_init");
 	if (!shell_init)
 		return -1;
 	if (shell_init(compositor, argc, argv) < 0)
@@ -1448,7 +1452,7 @@ wet_head_tracker_destroy(struct wet_head_tracker *track)
 static void
 handle_head_destroy(struct wl_listener *listener, void *data)
 {
-	struct weston_head *head = data;
+    struct weston_head *head = static_cast<struct weston_head*>(data);
 	struct weston_output *output;
 	struct wet_head_tracker *track =
 		container_of(listener, struct wet_head_tracker,
@@ -1495,7 +1499,7 @@ wet_head_tracker_create(struct wet_compositor *compositor,
 {
 	struct wet_head_tracker *track;
 
-	track = zalloc(sizeof *track);
+    track = static_cast<struct wet_head_tracker*>(zalloc(sizeof *track));
 	if (!track)
 		return;
 
@@ -1562,7 +1566,8 @@ simple_head_disable(struct weston_head *head)
 static void
 simple_heads_changed(struct wl_listener *listener, void *arg)
 {
-	struct weston_compositor *compositor = arg;
+    struct weston_compositor *compositor =
+        static_cast<struct weston_compositor*>(arg);
 	struct wet_compositor *wet = to_wet_compositor(compositor);
 	struct weston_head *head = NULL;
 	bool connected;
@@ -1747,21 +1752,21 @@ configure_input_device(struct weston_compositor *compositor,
 			weston_log("          enable-tap=%s.\n",
 				   enable_tap ? "true" : "false");
 			libinput_device_config_tap_set_enabled(device,
-							       enable_tap);
+                static_cast<enum libinput_config_tap_state>(enable_tap));
 		}
 		if (weston_config_section_get_bool(s, "tap-and-drag",
 						   &tap_and_drag, false) == 0) {
 			weston_log("          tap-and-drag=%s.\n",
 				   tap_and_drag ? "true" : "false");
 			libinput_device_config_tap_set_drag_enabled(device,
-					tap_and_drag);
+                static_cast<enum libinput_config_drag_state>(tap_and_drag));
 		}
 		if (weston_config_section_get_bool(s, "tap-and-drag-lock",
 					       &tap_and_drag_lock, false) == 0) {
 			weston_log("          tap-and-drag-lock=%s.\n",
 				   tap_and_drag_lock ? "true" : "false");
-			libinput_device_config_tap_set_drag_lock_enabled(
-					device, tap_and_drag_lock);
+            libinput_device_config_tap_set_drag_lock_enabled(device,
+                static_cast<enum libinput_config_drag_lock_state>(tap_and_drag_lock));
 		}
 	}
 
@@ -1771,7 +1776,7 @@ configure_input_device(struct weston_compositor *compositor,
 		weston_log("          disable-while-typing=%s.\n",
 			   disable_while_typing ? "true" : "false");
 		libinput_device_config_dwt_set_enabled(device,
-						       disable_while_typing);
+            static_cast<enum libinput_config_dwt_state>(disable_while_typing));
 	}
 
 	if (libinput_device_config_middle_emulation_is_available(device) &&
@@ -1779,8 +1784,8 @@ configure_input_device(struct weston_compositor *compositor,
 					   &middle_emulation, false) == 0) {
 		weston_log("          middle-button-emulation=%s\n",
 			   middle_emulation ? "true" : "false");
-		libinput_device_config_middle_emulation_set_enabled(
-				device, middle_emulation);
+        libinput_device_config_middle_emulation_set_enabled(device,
+            static_cast<enum libinput_config_middle_emulation_state>(middle_emulation));
 	}
 
 	if (libinput_device_config_left_handed_is_available(device) &&
@@ -1923,7 +1928,7 @@ wet_compositor_create_layoutput(struct wet_compositor *compositor,
 {
 	struct wet_layoutput *lo;
 
-	lo = zalloc(sizeof *lo);
+    lo = static_cast<struct wet_layoutput*>(zalloc(sizeof *lo));
 	if (!lo)
 		return NULL;
 
@@ -1962,7 +1967,7 @@ wet_layoutput_create_output(struct wet_layoutput *lo, const char *name)
 {
 	struct wet_output *output;
 
-	output = zalloc(sizeof *output);
+    output = static_cast<struct wet_output*>(zalloc(sizeof *output));
 	if (!output)
 		return NULL;
 
@@ -2297,7 +2302,8 @@ drm_head_disable(struct weston_head *head)
 static void
 drm_heads_changed(struct wl_listener *listener, void *arg)
 {
-	struct weston_compositor *compositor = arg;
+    struct weston_compositor *compositor =
+        static_cast<struct weston_compositor*>(arg);
 	struct wet_compositor *wet = to_wet_compositor(compositor);
 	struct weston_head *head = NULL;
 	bool connected;
@@ -2446,8 +2452,10 @@ err:
 static void
 load_remoting(struct weston_compositor *c, struct weston_config *wc)
 {
+    using load_module = int (*)(struct weston_compositor *ec);
+
 	const struct weston_remoting_api *api = NULL;
-	int (*module_init)(struct weston_compositor *ec);
+    load_module module_init;
 	struct weston_config_section *section = NULL;
 	const char *section_name;
 
@@ -2466,7 +2474,7 @@ load_remoting(struct weston_compositor *c, struct weston_config *wc)
 							 "remoting",
 							 &module_name,
 							 "remoting-plugin.so");
-			module_init = weston_load_module(module_name,
+            module_init = (load_module)weston_load_module(module_name,
 							 "weston_module_init");
 			free(module_name);
 			if (!module_init) {
@@ -2576,8 +2584,10 @@ err:
 static void
 load_pipewire(struct weston_compositor *c, struct weston_config *wc)
 {
+    using load_module = int (*)(struct weston_compositor *ec);
+
 	const struct weston_pipewire_api *api = NULL;
-	int (*module_init)(struct weston_compositor *ec);
+    load_module module_init;
 	struct weston_config_section *section = NULL;
 	const char *section_name;
 
@@ -2596,7 +2606,7 @@ load_pipewire(struct weston_compositor *c, struct weston_config *wc)
 							 "pipewire",
 							 &module_name,
 							 "pipewire-plugin.so");
-			module_init = weston_load_module(module_name,
+            module_init = (load_module)weston_load_module(module_name,
 							 "weston_module_init");
 			free(module_name);
 			if (!module_init) {
@@ -3246,7 +3256,8 @@ flight_rec_key_binding_handler(struct weston_keyboard *keyboard,
 			       const struct timespec *time, uint32_t key,
 			       void *data)
 {
-	struct weston_log_subscriber *flight_rec = data;
+    struct weston_log_subscriber *flight_rec =
+        static_cast<struct weston_log_subscriber*>(data);
 	weston_log_subscriber_display_flight_rec(flight_rec);
 }
 

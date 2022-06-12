@@ -12,7 +12,7 @@ SOURCES += clients/desktop-shell.cpp \
     desktop-shell/shell.cpp \
     desktop-shell/exposay.cpp \
     desktop-shell/input-panel.cpp \
-    compositor/main.c \
+    compositor/main.cpp \
     libweston/base.cpp
 
 HEADERS += \
