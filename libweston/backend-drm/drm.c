@@ -3198,6 +3198,8 @@ static struct drm_backend* drm_backend_create(struct weston_compositor *composit
 		goto err_udev_monitor;
 	}
 
+    fprintf(stderr, "!!! [DEBUG] DRM_BACKEND END   drm_backend_create()\n");
+
 	return b;
 
 err_udev_monitor:

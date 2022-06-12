@@ -92,6 +92,7 @@ exposay_in_flight_dec(struct desktop_shell *shell)
 static void
 exposay_animate_in_done(struct weston_view_animation *animation, void *data)
 {
+    (void)animation;
     struct exposay_surface *esurface =
         static_cast<struct exposay_surface*>(data);
 
@@ -126,6 +127,7 @@ exposay_animate_in(struct exposay_surface *esurface)
 static void
 exposay_animate_out_done(struct weston_view_animation *animation, void *data)
 {
+    (void)animation;
     struct exposay_surface *esurface =
         static_cast<struct exposay_surface*>(data);
 	struct desktop_shell *shell = esurface->shell;
@@ -202,6 +204,7 @@ exposay_pick(struct desktop_shell *shell, int x, int y)
 static void
 handle_view_destroy(struct wl_listener *listener, void *data)
 {
+    (void)data;
 	struct exposay_surface *esurface = container_of(listener,
 						 struct exposay_surface,
 						 view_destroy_listener);
@@ -236,6 +239,7 @@ static void
 exposay_margin_size(struct desktop_shell *shell, pixman_rectangle32_t exposay_area,
 		    int row_size, int column_size, int *left_margin, int *top_margin)
 {
+    (void)shell;
 	(*left_margin) = exposay_area.x + (exposay_area.width - row_size) / 2;
 	(*top_margin) = exposay_area.y + (exposay_area.height - column_size) / 2;
 }
@@ -390,6 +394,7 @@ exposay_layout(struct desktop_shell *shell, hb::ShellOutput *shell_output)
 static void
 exposay_focus(struct weston_pointer_grab *grab)
 {
+    (void)grab;
 }
 
 static void
@@ -397,6 +402,7 @@ exposay_motion(struct weston_pointer_grab *grab,
 	       const struct timespec *time,
 	       struct weston_pointer_motion_event *event)
 {
+    (void)time;
 	struct desktop_shell *shell =
 		container_of(grab, struct desktop_shell, exposay.grab_ptr);
 
@@ -411,6 +417,7 @@ static void
 exposay_button(struct weston_pointer_grab *grab, const struct timespec *time,
 	       uint32_t button, uint32_t state_w)
 {
+    (void)time;
 	struct desktop_shell *shell =
 		container_of(grab, struct desktop_shell, exposay.grab_ptr);
 	struct weston_seat *seat = grab->pointer->seat;
@@ -438,16 +445,22 @@ exposay_axis(struct weston_pointer_grab *grab,
 	     const struct timespec *time,
 	     struct weston_pointer_axis_event *event)
 {
+    (void)grab;
+    (void)time;
+    (void)event;
 }
 
 static void
 exposay_axis_source(struct weston_pointer_grab *grab, uint32_t source)
 {
+    (void)grab;
+    (void)source;
 }
 
 static void
 exposay_frame(struct weston_pointer_grab *grab)
 {
+    (void)grab;
 }
 
 static void
@@ -490,6 +503,7 @@ static void
 exposay_key(struct weston_keyboard_grab *grab, const struct timespec *time,
 	    uint32_t key, uint32_t state_w)
 {
+    (void)time;
 	struct weston_seat *seat = grab->keyboard->seat;
 	struct desktop_shell *shell =
 		container_of(grab, struct desktop_shell, exposay.grab_kbd);
@@ -547,6 +561,11 @@ exposay_modifier(struct weston_keyboard_grab *grab, uint32_t serial,
                  uint32_t mods_depressed, uint32_t mods_latched,
                  uint32_t mods_locked, uint32_t group)
 {
+    (void)serial;
+    (void)mods_depressed;
+    (void)mods_latched;
+    (void)mods_locked;
+    (void)group;
 	struct desktop_shell *shell =
 		container_of(grab, struct desktop_shell, exposay.grab_kbd);
 	struct weston_seat *seat = (struct weston_seat *) grab->keyboard->seat;
@@ -641,7 +660,6 @@ exposay_transition_active(struct desktop_shell *shell)
 	struct weston_seat *seat = shell->exposay.seat;
 	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
 	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
-    hb::ShellOutput *shell_output;
 	bool animate = false;
 
     shell->exposay.workspace =
@@ -733,10 +751,11 @@ exposay_set_state(struct desktop_shell *shell, enum exposay_target_state state,
 	exposay_check_state(shell);
 }
 
-void
-exposay_binding(struct weston_keyboard *keyboard, enum weston_keyboard_modifier modifier,
-		void *data)
+void exposay_binding(struct weston_keyboard *keyboard,
+        enum weston_keyboard_modifier modifier,
+        void *data)
 {
+    (void)modifier;
     struct desktop_shell *shell = static_cast<struct desktop_shell*>(data);
 
 	exposay_set_state(shell, EXPOSAY_TARGET_OVERVIEW, keyboard->seat);
