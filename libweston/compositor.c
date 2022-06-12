@@ -8296,6 +8296,7 @@ weston_compositor_load_backend(struct weston_compositor *compositor,
 			       enum weston_compositor_backend backend,
 			       struct weston_backend_config *config_base)
 {
+	fprintf(stderr, "!! [DEBUG] BEGIN weston_compositor_load_backend()\n");
 	int (*backend_init)(struct weston_compositor *c,
 			    struct weston_backend_config *config_base);
 
@@ -8311,10 +8312,12 @@ weston_compositor_load_backend(struct weston_compositor *compositor,
 	if (!backend_init)
 		return -1;
 
+	fprintf(stderr, "!! [DEBUG] MIDDLE weston_compositor_load_backend() - before backend_init()\n");
 	if (backend_init(compositor, config_base) < 0) {
 		compositor->backend = NULL;
 		return -1;
 	}
+	fprintf(stderr, "!! [DEBUG] MIDDLE weston_compositor_load_backend() - after backend_init()\n");
 
 	if (!compositor->color_manager) {
 		compositor->color_manager =

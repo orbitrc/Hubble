@@ -2707,21 +2707,25 @@ load_pipewire(struct weston_compositor *c, struct weston_config *wc)
 	}
 }
 
-static int
-load_drm_backend(struct weston_compositor *c,
-		 int *argc, char **argv, struct weston_config *wc)
+static int load_drm_backend(struct weston_compositor *c,
+        int *argc, char **argv, struct weston_config *wc)
 {
-	struct weston_drm_backend_config config = {{ 0, }};
-	struct weston_config_section *section;
+    struct weston_drm_backend_config config = {{ 0, }};
+    struct weston_config_section *section;
     hb::Compositor *wet = to_wet_compositor(c);
-	bool without_input = false;
-	int ret = 0;
+    bool without_input = false;
+    int ret = 0;
+
+    config.seat_id = nullptr;
+    config.specific_device = nullptr;
+
+    fprintf(stderr, " [DEBUG] BEGIN load_drm_backend() - wet: %p\n", wet);
 
 	wet->drm_use_current_mode = false;
 
 	section = weston_config_get_section(wc, "core", NULL, NULL);
-	weston_config_section_get_bool(section, "use-pixman", &config.use_pixman,
-				       false);
+    weston_config_section_get_bool(section, "use-pixman", &config.use_pixman,
+        false);
 
 	const struct weston_option options[] = {
 		{ WESTON_OPTION_STRING, "seat", 0, &config.seat_id },
@@ -2732,7 +2736,7 @@ load_drm_backend(struct weston_compositor *c,
 		{ WESTON_OPTION_BOOLEAN, "continue-without-input", false, &without_input }
 	};
 
-	parse_options(options, ARRAY_LENGTH(options), argc, argv);
+    parse_options(options, ARRAY_LENGTH(options), argc, argv);
 
 	section = weston_config_get_section(wc, "core", NULL, NULL);
 	weston_config_section_get_string(section,
@@ -2742,29 +2746,38 @@ load_drm_backend(struct weston_compositor *c,
 	                               &config.pageflip_timeout, 0);
 	weston_config_section_get_bool(section, "pixman-shadow",
 				       &config.use_pixman_shadow, true);
-	if (without_input)
-		c->require_input = !without_input;
+    if (without_input) {
+        c->require_input = !without_input;
+    }
 
-	config.base.struct_version = WESTON_DRM_BACKEND_CONFIG_VERSION;
-	config.base.struct_size = sizeof(struct weston_drm_backend_config);
-	config.configure_device = configure_input_device;
+    config.base.struct_version = WESTON_DRM_BACKEND_CONFIG_VERSION;
+    config.base.struct_size = sizeof(struct weston_drm_backend_config);
+    config.configure_device = configure_input_device;
 
-	wet->heads_changed_listener.notify = drm_heads_changed;
-	weston_compositor_add_heads_changed_listener(c,
-						&wet->heads_changed_listener);
+    fprintf(stderr, " [DEBUG] MIDDLE load_drm_backend() - after config\n");
 
-	ret = weston_compositor_load_backend(c, WESTON_BACKEND_DRM,
-					     &config.base);
+    wet->heads_changed_listener.notify = drm_heads_changed;
+    weston_compositor_add_heads_changed_listener(c,
+        &wet->heads_changed_listener);
 
-	/* remoting */
-	load_remoting(c, wc);
+    fprintf(stderr, " [DEBUG] MIDDLE load_drm_backend() - before load backend\n");
 
-	/* pipewire */
-	load_pipewire(c, wc);
+    ret = weston_compositor_load_backend(c, WESTON_BACKEND_DRM,
+        &config.base);
+
+    fprintf(stderr, " [DEBUG] MIDDLE load_drm_backend() - after load backend\n");
+
+    /* remoting */
+    load_remoting(c, wc);
+
+    /* pipewire */
+    load_pipewire(c, wc);
 
 	free(config.gbm_format);
 	free(config.seat_id);
 	free(config.specific_device);
+
+    fprintf(stderr, " [DEBUG] END   load_drm_backend()\n");
 
 	return ret;
 }
@@ -3226,9 +3239,9 @@ load_wayland_backend(struct weston_compositor *c,
 }
 
 
-static int
-load_backend(struct weston_compositor *compositor, const char *backend,
-	     int *argc, char **argv, struct weston_config *config)
+static int load_backend(struct weston_compositor *compositor,
+        const char *backend,
+        int *argc, char **argv, struct weston_config *config)
 {
 	if (strstr(backend, "headless-backend.so"))
 		return load_headless_backend(compositor, argc, argv, config);
@@ -3544,35 +3557,40 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 					     NULL, NULL, NULL);
 
     fprintf(stderr, "   - MIDDLE wet_main(). OK...\n");
-	protologger = wl_display_add_protocol_logger(display,
-						     protocol_log_fn,
-						     NULL);
-	if (debug_protocol)
-		weston_compositor_enable_debug_protocol(wet.compositor);
+    protologger = wl_display_add_protocol_logger(display,
+        protocol_log_fn,
+        NULL);
+    if (debug_protocol) {
+        weston_compositor_enable_debug_protocol(wet.compositor);
+    }
 
-	if (flight_rec)
-		weston_compositor_add_debug_binding(wet.compositor, KEY_D,
-						    flight_rec_key_binding_handler,
-						    flight_rec);
+    if (flight_rec) {
+        weston_compositor_add_debug_binding(wet.compositor, KEY_D,
+            flight_rec_key_binding_handler,
+            flight_rec);
+    }
+    fprintf(stderr, "   - MIDDLE wet_main() 2 OK...\n");
 
-	if (weston_compositor_init_config(wet.compositor, config) < 0)
-		goto out;
+    if (weston_compositor_init_config(wet.compositor, config) < 0) {
+        goto out;
+    }
+    fprintf(stderr, "   - MIDDLE wet_main() 3 OK...\n");
 
-	weston_config_section_get_bool(section, "require-input",
-				       &wet.compositor->require_input, true);
+    weston_config_section_get_bool(section, "require-input",
+        &wet.compositor->require_input, true);
 
-	if (load_backend(wet.compositor, backend, &argc, argv, config) < 0) {
-		weston_log("fatal: failed to create compositor backend\n");
-		goto out;
-	}
+    fprintf(stderr, "   - MIDDLE wet_main() 4 OK...\n");
+    if (load_backend(wet.compositor, backend, &argc, argv, config) < 0) {
+        weston_log("fatal: failed to create compositor backend\n");
+        goto out;
+    }
 
-	if (test_data && !check_compositor_capabilities(wet.compositor,
-				test_data->test_quirks.required_capabilities)) {
-		ret = WET_MAIN_RET_MISSING_CAPS;
-		goto out;
-	}
-
-    fprintf(stderr, "   - MIDDLE wet_main(). Error!\n");
+    fprintf(stderr, "   - MIDDLE wet_main() 5 OK...\n");
+    if (test_data && !check_compositor_capabilities(wet.compositor,
+            test_data->test_quirks.required_capabilities)) {
+        ret = WET_MAIN_RET_MISSING_CAPS;
+        goto out;
+    }
 
     weston_compositor_flush_heads_changed(wet.compositor);
     if (wet.init_failed) {
@@ -3580,10 +3598,12 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
         goto out;
     }
 
-	if (idle_time < 0)
-		weston_config_section_get_int(section, "idle-time", &idle_time, -1);
-	if (idle_time < 0)
-		idle_time = 300; /* default idle timeout, in seconds */
+    if (idle_time < 0) {
+        weston_config_section_get_int(section, "idle-time", &idle_time, -1);
+    }
+    if (idle_time < 0) {
+        idle_time = 300; /* default idle timeout, in seconds */
+    }
 
 	wet.compositor->idle_time = idle_time;
 	wet.compositor->default_pointer_grab = NULL;
@@ -3662,7 +3682,8 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 	if (execute_autolaunch(&wet, config) < 0)
 		goto out;
 
-	wl_display_run(display);
+    fprintf(stderr, "   - MIDDLE wet_main() - wl_display_run()...\n");
+    wl_display_run(display);
 
 	/* Allow for setting return exit code after
 	* wl_display_run returns normally. This is

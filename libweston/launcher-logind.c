@@ -631,35 +631,37 @@ launcher_logind_destroy_dbus(struct launcher_logind *wl)
 	free(wl->spath);
 }
 
-static int
-launcher_logind_take_control(struct launcher_logind *wl)
+static int launcher_logind_take_control(struct launcher_logind *wl)
 {
-	DBusError err;
-	DBusMessage *m, *reply;
-	dbus_bool_t force;
-	bool b;
-	int r;
+    DBusError err;
+    DBusMessage *m, *reply;
+    dbus_bool_t force;
+    bool b;
+    int r;
 
-	dbus_error_init(&err);
+    dbus_error_init(&err);
 
-	m = dbus_message_new_method_call("org.freedesktop.login1",
-					 wl->spath,
-					 "org.freedesktop.login1.Session",
-					 "TakeControl");
-	if (!m)
-		return -ENOMEM;
+    m = dbus_message_new_method_call("org.freedesktop.login1",
+        wl->spath,
+        "org.freedesktop.login1.Session",
+        "TakeControl");
+    if (!m) {
+        return -ENOMEM;
+    }
 
-	force = false;
-	b = dbus_message_append_args(m,
-				     DBUS_TYPE_BOOLEAN, &force,
-				     DBUS_TYPE_INVALID);
-	if (!b) {
-		r = -ENOMEM;
-		goto err_unref;
-	}
+    force = false;
+    b = dbus_message_append_args(m,
+        DBUS_TYPE_BOOLEAN, &force,
+        DBUS_TYPE_INVALID);
+    if (!b) {
+        r = -ENOMEM;
+        goto err_unref;
+    }
 
-	reply = dbus_connection_send_with_reply_and_block(wl->dbus,
-							  m, -1, &err);
+    fprintf(stderr, "!!   - BEFORE SEND - wl->dbus: %p\n", wl->dbus);
+    reply = dbus_connection_send_with_reply_and_block(wl->dbus,
+        m, -1, &err);
+    fprintf(stderr, "!!   - GOT DBUS REPLY\n");
 	if (!reply) {
 		if (dbus_error_has_name(&err, DBUS_ERROR_UNKNOWN_METHOD))
 			weston_log("logind: old systemd version detected\n");
@@ -734,8 +736,7 @@ launcher_logind_activate(struct launcher_logind *wl)
 	return 0;
 }
 
-static int
-launcher_logind_get_session(char **session)
+static int launcher_logind_get_session(char **session)
 {
 	int r;
 
@@ -757,37 +758,40 @@ launcher_logind_get_session(char **session)
 	return r;
 }
 
-static int
-launcher_logind_connect(struct weston_launcher **out, struct weston_compositor *compositor,
-			int tty, const char *seat_id, bool sync_drm)
+static int launcher_logind_connect(struct weston_launcher **out,
+        struct weston_compositor *compositor,
+        int tty, const char *seat_id, bool sync_drm)
 {
-	struct launcher_logind *wl;
-	struct wl_event_loop *loop;
-	char *t;
-	int r;
+    fprintf(stderr, "!! [DEBUG] BEGIN launcher_logind_connect()\n");
 
-	wl = zalloc(sizeof(*wl));
-	if (wl == NULL) {
-		r = -ENOMEM;
-		goto err_out;
-	}
+    struct launcher_logind *wl;
+    struct wl_event_loop *loop;
+    char *t;
+    int r;
+
+    wl = zalloc(sizeof(*wl));
+    if (wl == NULL) {
+        r = -ENOMEM;
+        goto err_out;
+    }
 
 	wl->base.iface = &launcher_logind_iface;
 	wl->compositor = compositor;
 	wl->sync_drm = sync_drm;
 
 	wl->seat = strdup(seat_id);
-	if (!wl->seat) {
-		r = -ENOMEM;
-		goto err_wl;
-	}
+    if (!wl->seat) {
+        r = -ENOMEM;
+        goto err_wl;
+    }
 
-	r = launcher_logind_get_session(&wl->sid);
-	if (r < 0)
-		goto err_seat;
+    r = launcher_logind_get_session(&wl->sid);
+    if (r < 0) {
+        goto err_seat;
+    }
 
-	t = NULL;
-	r = sd_session_get_seat(wl->sid, &t);
+    t = NULL;
+    r = sd_session_get_seat(wl->sid, &t);
 	if (r < 0) {
 		weston_log("logind: failed to get session seat\n");
 		free(t);
@@ -800,8 +804,8 @@ launcher_logind_connect(struct weston_launcher **out, struct weston_compositor *
 		goto err_session;
 	}
 
-	r = sd_seat_can_tty(t);
-	free(t);
+    r = sd_seat_can_tty(t);
+    free(t);
 	if (r > 0) {
 		r = weston_sd_session_get_vt(wl->sid, &wl->vtnr);
 		if (r < 0) {
@@ -819,20 +823,26 @@ launcher_logind_connect(struct weston_launcher **out, struct weston_compositor *
 		goto err_session;
 	}
 
-	loop = wl_display_get_event_loop(compositor->wl_display);
-	r = weston_dbus_open(loop, DBUS_BUS_SYSTEM, &wl->dbus, &wl->dbus_ctx);
-	if (r < 0) {
-		weston_log("logind: cannot connect to system dbus\n");
-		goto err_session;
-	}
+    loop = wl_display_get_event_loop(compositor->wl_display);
+    r = weston_dbus_open(loop, DBUS_BUS_SYSTEM, &wl->dbus, &wl->dbus_ctx);
+    if (r < 0) {
+        weston_log("logind: cannot connect to system dbus\n");
+        goto err_session;
+    }
 
-	r = launcher_logind_setup_dbus(wl);
-	if (r < 0)
-		goto err_dbus;
+    fprintf(stderr, "!!   - calling launcher_logind_setup_dbus()\n");
+    r = launcher_logind_setup_dbus(wl);
+    fprintf(stderr, "!!   - called launcher_logind_setup_dbus() - r: %d\n", r);
+    if (r < 0) {
+        goto err_dbus;
+    }
 
-	r = launcher_logind_take_control(wl);
-	if (r < 0)
-		goto err_dbus_cleanup;
+    fprintf(stderr, "!!   - calling launcher_logind_take_control()\n");
+    r = launcher_logind_take_control(wl);
+    fprintf(stderr, "!!   - called launcher_logind_take_control()\n");
+    if (r < 0) {
+        goto err_dbus_cleanup;
+    }
 
 	r = launcher_logind_activate(wl);
 	if (r < 0)
@@ -843,20 +853,20 @@ launcher_logind_connect(struct weston_launcher **out, struct weston_compositor *
 	return 0;
 
 err_dbus_cleanup:
-	launcher_logind_destroy_dbus(wl);
+    launcher_logind_destroy_dbus(wl);
 err_dbus:
-	weston_dbus_close(wl->dbus, wl->dbus_ctx);
+    weston_dbus_close(wl->dbus, wl->dbus_ctx);
 err_session:
-	free(wl->sid);
+    free(wl->sid);
 err_seat:
-	free(wl->seat);
+    free(wl->seat);
 err_wl:
-	free(wl);
+    free(wl);
 err_out:
-	weston_log("logind: cannot setup systemd-logind helper error: (%s), using legacy fallback\n",
-		   strerror(-r));
-	errno = -r;
-	return -1;
+    weston_log("logind: cannot setup systemd-logind helper error: (%s), using legacy fallback\n",
+        strerror(-r));
+    errno = -r;
+    return -1;
 }
 
 static void

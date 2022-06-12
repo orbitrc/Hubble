@@ -38,32 +38,53 @@
 
 static const struct launcher_interface *ifaces[] = {
 #ifdef HAVE_LIBSEAT
-	&launcher_libseat_iface,
+    &launcher_libseat_iface,
 #endif
 #ifdef HAVE_SYSTEMD_LOGIN
-	&launcher_logind_iface,
+    &launcher_logind_iface,
 #endif
-	&launcher_weston_launch_iface,
-	&launcher_direct_iface,
-	NULL,
+    &launcher_weston_launch_iface,
+    &launcher_direct_iface,
+    NULL,
 };
 
-WL_EXPORT struct weston_launcher *
-weston_launcher_connect(struct weston_compositor *compositor, int tty,
-			const char *seat_id, bool sync_drm)
+WL_EXPORT
+struct weston_launcher* weston_launcher_connect(struct weston_compositor *compositor,
+        int tty, const char *seat_id, bool sync_drm)
 {
-	const struct launcher_interface **it;
+    const struct launcher_interface **it;
 
-	for (it = ifaces; *it != NULL; it++) {
-		const struct launcher_interface *iface = *it;
-		struct weston_launcher *launcher;
+    fprintf(stderr, "!! [DEBUG] BEGIN weston_launcher_connect()\n");
+#ifdef HAVE_LIBSEAT
+    fprintf(stderr, "!!   - ifaces - launcher_libseat_iface: %p\n",
+        &launcher_libseat_iface);
+#endif
+#ifdef HAVE_SYSTEMD_LOGIN
+    fprintf(stderr, "!!   - ifaces - launcher_logind_iface: %p\n",
+        &launcher_logind_iface);
+#endif
+    fprintf(stderr, "!!   - ifaces - launcher_weston_launch_iface: %p\n",
+        &launcher_weston_launch_iface);
+    fprintf(stderr, "!!   - ifaces - launcher_direct_iface: %p\n",
+        &launcher_direct_iface);
 
-		weston_log("Trying %s launcher...\n", iface->name);
-		if (iface->connect(&launcher, compositor, tty, seat_id, sync_drm) == 0)
-			return launcher;
-	}
+    for (it = ifaces; *it != NULL; it++) {
+        const struct launcher_interface *iface = *it;
+        struct weston_launcher *launcher;
 
-	return NULL;
+        weston_log("Trying %s launcher...\n", iface->name);
+        fprintf(stderr, "!!   - iface: %p\n", iface);
+        fprintf(stderr, "!!   - compositor: %p\n", compositor);
+        fprintf(stderr, "!!   - tty: %d\n", tty);
+        fprintf(stderr, "!!   - seat_id: %s\n", seat_id);
+        fprintf(stderr, "!!   - sync_drm: %d\n", sync_drm);
+        if (iface->connect(&launcher, compositor, tty, seat_id, sync_drm) == 0) {
+            fprintf(stderr, "!!   - launcher: %p\n", launcher);
+            return launcher;
+        }
+    }
+
+    return NULL;
 }
 
 WL_EXPORT void
