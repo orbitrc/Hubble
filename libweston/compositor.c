@@ -8312,7 +8312,10 @@ weston_compositor_load_backend(struct weston_compositor *compositor,
 	if (!backend_init)
 		return -1;
 
-	fprintf(stderr, "!! [DEBUG] MIDDLE weston_compositor_load_backend() - before backend_init()\n");
+	fprintf(stderr,
+		"!! [DEBUG] MIDDLE weston_compositor_load_backend() - before backend_init()\n");
+	fprintf(stderr,
+		"  - backend_init: %p, compositor: %p\n", backend_init, compositor);
 	if (backend_init(compositor, config_base) < 0) {
 		compositor->backend = NULL;
 		return -1;

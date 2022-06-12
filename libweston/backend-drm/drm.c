@@ -2976,9 +2976,8 @@ static const struct weston_drm_output_api api = {
 	drm_output_set_seat,
 };
 
-static struct drm_backend *
-drm_backend_create(struct weston_compositor *compositor,
-		   struct weston_drm_backend_config *config)
+static struct drm_backend* drm_backend_create(struct weston_compositor *compositor,
+        struct weston_drm_backend_config *config)
 {
 	struct drm_backend *b;
 	struct udev_device *drm_device;
@@ -2988,6 +2987,8 @@ drm_backend_create(struct weston_compositor *compositor,
 	struct weston_drm_format_array *scanout_formats;
 	drmModeRes *res;
 	int ret;
+
+    fprintf(stderr, "!!! [DEBUG] DRM_BACKEND BEGIN drm_backend_create()\n");
 
 	session_seat = getenv("XDG_SEAT");
 	if (session_seat)
@@ -3020,8 +3021,8 @@ drm_backend_create(struct weston_compositor *compositor,
 		goto err_compositor;
 
 	/* Check if we run drm-backend using weston-launch */
-	compositor->launcher = weston_launcher_connect(compositor, config->tty,
-						       seat_id, true);
+    compositor->launcher = weston_launcher_connect(compositor, config->tty,
+        seat_id, true);
 	if (compositor->launcher == NULL) {
 		weston_log("fatal: drm backend should be run using "
 			   "weston-launch binary, or your system should "
@@ -3232,12 +3233,13 @@ config_init_to_defaults(struct weston_drm_backend_config *config)
 	config->use_pixman_shadow = true;
 }
 
-WL_EXPORT int
-weston_backend_init(struct weston_compositor *compositor,
-		    struct weston_backend_config *config_base)
+WL_EXPORT
+int weston_backend_init(struct weston_compositor *compositor,
+        struct weston_backend_config *config_base)
 {
-	struct drm_backend *b;
-	struct weston_drm_backend_config config = {{ 0, }};
+    fprintf(stderr, "!!! [DEBUG] DRM BACKEND BEGIN weston_backend_init()\n");
+    struct drm_backend *b;
+    struct weston_drm_backend_config config = {{ 0, }};
 
 	if (config_base == NULL ||
 	    config_base->struct_version != WESTON_DRM_BACKEND_CONFIG_VERSION ||
@@ -3249,9 +3251,11 @@ weston_backend_init(struct weston_compositor *compositor,
 	config_init_to_defaults(&config);
 	memcpy(&config, config_base, config_base->struct_size);
 
+    fprintf(stderr, "!!! [DEBUG] DRM BACKEND MIDDLE weston_backend_init() - before drm_backend_create()\n");
 	b = drm_backend_create(compositor, &config);
 	if (b == NULL)
 		return -1;
 
+    fprintf(stderr, "!!! [DEBUG] DRM BACKEND END   weston_backend_init()\n");
 	return 0;
 }

@@ -15,7 +15,8 @@ SOURCES += clients/desktop-shell.cpp \
     compositor/main.cpp \
     libweston/base.cpp \
     libweston/launcher-util.c \
-    libweston/launcher-logind.c
+    libweston/launcher-logind.c \
+    libweston/backend-drm/drm.c
 
 HEADERS += \
     shared/cairo-util.h \
