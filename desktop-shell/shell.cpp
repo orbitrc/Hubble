@@ -2231,7 +2231,7 @@ unset_fullscreen(struct shell_surface *shsurf)
 	shsurf->saved_position_valid = false;
 
 	if (shsurf->saved_rotation_valid) {
-		wl_list_insert(&shsurf->view->geometry.transformation_list,
+        wl_list_insert(&shsurf->view->geometry.transformation_list,
 		               &shsurf->rotation.transform.link);
 		shsurf->saved_rotation_valid = false;
 	}
@@ -5431,7 +5431,7 @@ static void shell_destroy(struct wl_listener *listener, void *data)
 //		shell_output_destroy(shell_output);
     for (auto& shell_output: shell->output_list) {
         fprintf(stderr, "   - shell_destroy() - loop. shell_output: %p\n", shell_output);
-        shell_output_destroy(shell_output);
+//        shell_output_destroy(shell_output);
         fprintf(stderr, "   - shell_destroy() - loop. shell destroyed.\n");
     }
     // Destroy output_list.

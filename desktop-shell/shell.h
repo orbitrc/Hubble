@@ -244,7 +244,6 @@ public:
     struct weston_output  *output;
     struct exposay_output eoutput;
     struct wl_listener    destroy_listener;
-    struct wl_list        link;
 
     struct weston_surface *panel_surface;
     struct wl_listener panel_surface_listener;
